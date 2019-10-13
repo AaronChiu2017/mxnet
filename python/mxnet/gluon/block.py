@@ -163,9 +163,9 @@ def _flatten(args, inout_str):
 
     if not isinstance(args, (list, tuple)):
         raise ValueError("When hybridized, the input of HybridBlock {}"
-                          " must be (nested) list of Symbol" \
-                          " or NDArray, " \
-                          "but got {} of type {}".format(inout_str, str(args), str(type(args))))
+                         " must be (nested) list of Symbol"
+                         " or NDArray, "
+                         "but got {} of type {}".format(inout_str, str(args), str(type(args))))
     flat = []
     fmts = []
     for i in args:
@@ -208,8 +208,8 @@ def _regroup(args, fmt):
                 return args[:fmt], args[fmt:]
 
         if not isinstance(args, (list, tuple)):
-            raise ValueError("When hybridized, the output of HybridBlock must be (nested)" \
-                             " list of Symbol or NDArray, " \
+            raise ValueError("When hybridized, the output of HybridBlock must be (nested)"
+                             " list of Symbol or NDArray, "
                              "but got {} of type {}".format(args, type(args)))
         ret = []
         for i in fmt:
