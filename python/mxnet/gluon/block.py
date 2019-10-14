@@ -163,9 +163,9 @@ def _flatten(args, inout_str):
 
     if not isinstance(args, (list, tuple)):
         raise ValueError("When hybridized, the input of HybridBlock {}"
-                          " must be (nested) list of Symbol" \
-                          " or NDArray, " \
-                          "but got {} of type {}".format(inout_str, str(args), str(type(args))))
+                         " must be (nested) list of Symbol"
+                         " or NDArray, "
+                         "but got {} of type {}".format(inout_str, str(args), str(type(args))))
     flat = []
     fmts = []
     for i in args:
@@ -208,8 +208,8 @@ def _regroup(args, fmt):
                 return args[:fmt], args[fmt:]
 
         if not isinstance(args, (list, tuple)):
-            raise ValueError("When hybridized, the output of HybridBlock must be (nested)" \
-                             " list of Symbol or NDArray, " \
+            raise ValueError("When hybridized, the output of HybridBlock must be (nested)"
+                             " list of Symbol or NDArray, "
                              "but got {} of type {}".format(args, type(args)))
         ret = []
         for i in fmt:
@@ -1107,11 +1107,6 @@ class HybridBlock(Block):
             raise ValueError('In HybridBlock, there must be one NDArray or one Symbol in the input.'
                              ' Please check the type of the args.\n')
         if has_ndarray:
-            if len(ctx_set) > 1:
-                raise ValueError('Find multiple contexts in the input, HybridBlock only supports '
-                                 'a single context.'
-                                 ' You can print the ele.context in the input arguments to '
-                                 'inspect their contexts. Find all contexts = {}'.format(ctx_set))
             ctx = next(iter(ctx_set))
             with ctx:
                 if self._active:
