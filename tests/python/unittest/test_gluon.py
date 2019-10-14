@@ -556,20 +556,16 @@ def test_hybrid_block_hybrid_no_hybrid():
         hybrid_block_out = foo_hybrid(a, b)
         block_out = foo(a, b)
         assert_almost_equal(hybrid_block_out.asnumpy(), block_out.asnumpy())
-    # When hybridize is called, we need to make sure
-    # 1. Scalar values are not used as the input
-    # 2. All ndarrays must have the same context
-    # 3. No mixing of sym/ndarray
+    # When hybridize is called, we need to make sure that the model raises for the unsupported cases
+    # 1. Scalar values in the input
+    # 2. No mixing of sym/ndarray
     foo_hybrid = FooHybrid()
     foo_hybrid.hybridize()
     assert_raises(ValueError, lambda: foo_hybrid(mx.nd.ones((10,)), 1))
     foo_hybrid = FooHybrid()
     foo_hybrid.hybridize()
     assert_raises(ValueError, lambda: foo_hybrid(mx.nd.ones((10,)), mx.sym.var('a')))
-    foo_hybrid = FooHybrid()
-    foo_hybrid.hybridize()
-    assert_raises(ValueError, lambda: foo_hybrid(mx.nd.ones((10,), ctx=mx.cpu(10)),
-                                                 mx.nd.ones((10,), ctx=mx.cpu(100))))
+
 
 @with_seed()
 def check_layer_forward(layer, dshape):
