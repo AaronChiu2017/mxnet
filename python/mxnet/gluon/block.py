@@ -113,25 +113,31 @@ def _gather_type_ctx_info(args):
     ctx_set : set of mxnet.context.Context
         Contains all possible contexts of the inner ndarrays in args. Can be empty if there is no
         ndarray inside args.
+    first_ctx : mxnet.context.Context or None
+        Context of the first appeared NDArray (for backward-compatibility)
     """
     if isinstance(args, NDArray):
-        return False, True, {args.context}
+        return False, True, {args.context}, args.context
     elif isinstance(args, Symbol):
-        return True, False, set()
+        return True, False, set(), None
     elif isinstance(args, (list, tuple)):
         has_symbol = False
         has_ndarray = False
         ctx_set = set()
+        first_ctx = None
         for ele in args:
-            ele_has_sym, ele_has_nd, ele_ctx_set = _gather_type_ctx_info(ele)
+            ele_has_sym, ele_has_nd, ele_ctx_set, ele_first_ctx =\
+                _gather_type_ctx_info(ele)
             has_symbol = has_symbol or ele_has_sym
             has_ndarray = has_ndarray or ele_has_nd
+            if first_ctx is None and ele_first_ctx is not None:
+                first_ctx = ele_first_ctx
             ctx_set = ctx_set | ele_ctx_set
             if has_symbol and has_ndarray:
                 break
-        return has_symbol, has_ndarray, ctx_set
+        return has_symbol, has_ndarray, ctx_set, first_ctx
     else:
-        return False, False, set()
+        return False, False, set(), None
 
 
 def _flatten(args, inout_str):
@@ -1099,7 +1105,7 @@ class HybridBlock(Block):
         """Defines the forward computation. Arguments can be either
         :py:class:`NDArray` or :py:class:`Symbol`."""
 
-        has_symbol, has_ndarray, ctx_set = _gather_type_ctx_info([x] + list(args))
+        has_symbol, has_ndarray, ctx_set, first_ctx = _gather_type_ctx_info([x] + list(args))
         if has_symbol and has_ndarray:
             raise ValueError('In HybridBlock, we do not support mixed NDArrays and Symbols'
                              ' types for the input. Please check the type of the args.\n')
@@ -1107,7 +1113,7 @@ class HybridBlock(Block):
             raise ValueError('In HybridBlock, there must be one NDArray or one Symbol in the input.'
                              ' Please check the type of the args.\n')
         if has_ndarray:
-            ctx = next(iter(ctx_set))
+            ctx = first_ctx
             with ctx:
                 if self._active:
                     return self._call_cached_op(x, *args)
