@@ -1105,7 +1105,7 @@ class HybridBlock(Block):
         """Defines the forward computation. Arguments can be either
         :py:class:`NDArray` or :py:class:`Symbol`."""
 
-        has_symbol, has_ndarray, ctx_set, first_ctx = _gather_type_ctx_info([x] + list(args))
+        has_symbol, has_ndarray, _, first_ctx = _gather_type_ctx_info([x] + list(args))
         if has_symbol and has_ndarray:
             raise ValueError('In HybridBlock, we do not support mixed NDArrays and Symbols'
                              ' types for the input. Please check the type of the args.\n')
