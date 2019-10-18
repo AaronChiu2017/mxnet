@@ -36,6 +36,7 @@ from .utils import _indent, _brief_print_list, HookHandle
 from .utils import _check_same_symbol_type, _check_all_np_ndarrays
 from .. import numpy_extension as _mx_npx
 from .. import numpy as _mx_np
+from .. context import Context
 from .. util import is_np_array, np_shape, np_array
 
 
@@ -1105,7 +1106,7 @@ class HybridBlock(Block):
         """Defines the forward computation. Arguments can be either
         :py:class:`NDArray` or :py:class:`Symbol`."""
 
-        has_symbol, has_ndarray, _, first_ctx = _gather_type_ctx_info([x] + list(args))
+        has_symbol, has_ndarray, ctx_set, first_ctx = _gather_type_ctx_info([x] + list(args))
         if has_symbol and has_ndarray:
             raise ValueError('In HybridBlock, we do not support mixed NDArrays and Symbols'
                              ' types for the input. Please check the type of the args.\n')
@@ -1114,10 +1115,22 @@ class HybridBlock(Block):
                              ' Please check the type of the args.\n')
         if has_ndarray:
             ctx = first_ctx
-            with ctx:
-                if self._active:
+            if self._active:
+                if len(ctx_set) > 1:
+                    # Usually, we do not support the case of multiple different contexts. However,
+                    # if all these contexts lie in the cpu, we will set the ctx to be in the cpu
+                    if not all([ele.device_type == 'cpu' for ele in ctx_set]):
+                        raise ValueError('Find multiple contexts in the input, '
+                                         'HybridBlock only supports a single gpu context or '
+                                         'multiple cpu-based contexts.'
+                                         ' You can print the ele.context in the input arguments to '
+                                         'inspect their contexts. '
+                                         'Find all contexts = {}'.format(ctx_set))
+                    else:
+                        ctx = Context('cpu')
+                with ctx:
                     return self._call_cached_op(x, *args)
-
+            with ctx:
                 try:
                     params = {k: v.data(ctx) for k, v in self._reg_params.items()}
                 except DeferredInitializationError:
