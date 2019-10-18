@@ -560,12 +560,17 @@ def test_hybrid_block_hybrid_no_hybrid():
     # When hybridize is called, we need to make sure that the model raises for the unsupported cases
     # 1. Scalar values in the input
     # 2. No mixing of sym/ndarray
+    # 3. No mixing of cpu ndarray and gpu ndarray  (Tested in gpu/test_gluon_gpu.py)
+    # 4. Allow mixing of cpu_pinned and cpu
     foo_hybrid = FooHybrid()
     foo_hybrid.hybridize()
     assert_raises(ValueError, lambda: foo_hybrid(mx.nd.ones((10,)), 1))
     foo_hybrid = FooHybrid()
     foo_hybrid.hybridize()
     assert_raises(ValueError, lambda: foo_hybrid(mx.nd.ones((10,)), mx.sym.var('a')))
+    foo_hybrid = FooHybrid()
+    foo_hybrid.hybridize()
+    foo_hybrid(mx.nd.ones((10,), ctx=mx.cpu()), mx.nd.ones((10,), ctx=mx.cpu_pinned()))
 
 
 @with_seed()
