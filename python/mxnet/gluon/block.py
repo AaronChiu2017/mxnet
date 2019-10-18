@@ -1119,15 +1119,15 @@ class HybridBlock(Block):
                 if len(ctx_set) > 1:
                     # Usually, we do not support the case of multiple different contexts. However,
                     # if all these contexts lie in the cpu, we will set the ctx to be in the cpu
-                    if not all([ele.device_type == 'cpu' for ele in ctx_set]):
+                    if all([ele.device_type == 'cpu' for ele in ctx_set]):
+                        ctx = Context('cpu')
+                    else:
                         raise ValueError('Find multiple contexts in the input, '
                                          'HybridBlock only supports a single gpu context or '
                                          'multiple cpu-based contexts.'
                                          ' You can print the ele.context in the input arguments to '
                                          'inspect their contexts. '
                                          'Find all contexts = {}'.format(ctx_set))
-                    else:
-                        ctx = Context('cpu')
                 with ctx:
                     return self._call_cached_op(x, *args)
             with ctx:
