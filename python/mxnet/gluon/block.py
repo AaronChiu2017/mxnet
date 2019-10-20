@@ -36,7 +36,6 @@ from .utils import _indent, _brief_print_list, HookHandle
 from .utils import _check_same_symbol_type, _check_all_np_ndarrays
 from .. import numpy_extension as _mx_npx
 from .. import numpy as _mx_np
-from .. context import Context
 from .. util import is_np_array, np_shape, np_array
 
 
@@ -1117,22 +1116,11 @@ class HybridBlock(Block):
             ctx = first_ctx
             if self._active:
                 if len(ctx_set) > 1:
-                    # Usually, we do not support the case of multiple different contexts. However,
-                    # if all these contexts lie in the cpu, we will set the ctx to be in the cpu
-                    all_cpus = True
-                    for ele in ctx_set:
-                        if ele.device_type not in ['cpu', 'cpu_pinned', 'cpu_shared']:
-                            all_cpus = False
-                            break
-                    if all_cpus:
-                        ctx = Context('cpu')
-                    else:
-                        raise ValueError('Find multiple contexts in the input, '
-                                         'HybridBlock only supports a single gpu context or '
-                                         'multiple cpu-based contexts.'
-                                         ' You can print the ele.context in the input arguments to '
-                                         'inspect their contexts. '
-                                         'Find all contexts = {}'.format(ctx_set))
+                    raise ValueError('Find multiple contexts in the input, '
+                                     'After hybridized, the HybridBlock only supports one input '
+                                     'context. You can print the ele.context in the '
+                                     'input arguments to inspect their contexts. '
+                                     'Find all contexts = {}'.format(ctx_set))
                 with ctx:
                     return self._call_cached_op(x, *args)
             with ctx:

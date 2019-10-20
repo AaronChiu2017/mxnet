@@ -18,26 +18,19 @@
  */
 
 /*!
- * \file np_gesvd.cu
- * \brief GPU implementation of the SVD Operator
+ * \file np_einsum_op.cu
+ * \brief GPU Implementation of numpy-compatible einsum
  */
 
-#include <mxnet/operator_util.h>
-#include <vector>
-#include "./np_gesvd-inl.h"
+#include "./np_einsum_op-inl.h"
 
 namespace mxnet {
 namespace op {
 
-#if MXNET_USE_CUSOLVER == 1
-
-NNVM_REGISTER_OP(_npi_svd)
-.set_attr<FCompute>("FCompute<gpu>", NumpyLaGesvdForward<gpu, gesvd>);
-
-NNVM_REGISTER_OP(_backward_npi_svd)
-.set_attr<FCompute>("FCompute<gpu>", NumpyLaGesvdBackward<gpu, gesvd_backward>);
-
-#endif
+NNVM_REGISTER_OP(_npi_einsum)
+.set_attr<FStatefulCompute>("FStatefulCompute<gpu>", NumpyEinsumForward<gpu>);
+NNVM_REGISTER_OP(_backward_npi_einsum)
+.set_attr<FStatefulCompute>("FStatefulCompute<gpu>", NumpyEinsumBackward<gpu>);
 
 }  // namespace op
 }  // namespace mxnet

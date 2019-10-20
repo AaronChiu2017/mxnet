@@ -570,7 +570,8 @@ def test_hybrid_block_hybrid_no_hybrid():
     assert_raises(ValueError, lambda: foo_hybrid(mx.nd.ones((10,)), mx.sym.var('a')))
     foo_hybrid = FooHybrid()
     foo_hybrid.hybridize()
-    foo_hybrid(mx.nd.ones((10,), ctx=mx.cpu()), mx.nd.ones((10,), ctx=mx.cpu_pinned()))
+    assert_raises(ValueError, lambda: foo_hybrid(mx.nd.ones((10,), ctx=mx.cpu(1)),
+                                                 mx.nd.ones((10,), ctx=mx.cpu(2))))
 
 
 @with_seed()
