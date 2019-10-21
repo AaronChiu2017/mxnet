@@ -889,7 +889,8 @@ Example::
 #else
 .set_attr<FCompute>("FCompute<cpu>", UnaryOp::Compute<cpu, mshadow_op::erf>)
 #endif    // MSHADOW_USE_MKL == 1
-.set_attr<nnvm::FGradient>("FGradient", ElemwiseGradUseIn{"_backward_erf"});
+.set_attr<nnvm::FGradient>("FGradient", ElemwiseGradUseIn{"_backward_erf"})
+.add_alias("_npx_erf");
 
 
 MXNET_OPERATOR_REGISTER_BINARY(_backward_erf)
