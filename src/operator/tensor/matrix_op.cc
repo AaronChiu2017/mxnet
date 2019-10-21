@@ -219,7 +219,8 @@ If the argument `reverse` is set to 1, then the special values are inferred from
     return std::vector<bool>{true};
   })
 .add_argument("data", "NDArray-or-Symbol", "Input data to reshape.")
-.add_arguments(ReshapeParam::__FIELDS__());
+.add_arguments(ReshapeParam::__FIELDS__())
+.add_alias("_npx__legacy_reshape");
 
 #if MXNET_USE_MKLDNN == 1
 static void FlattenEx(const nnvm::NodeAttrs& attrs,
