@@ -38,7 +38,7 @@ MXNET_OPERATOR_REGISTER_UNARY(_contrib_div_sqrt_dim)
 )code" ADD_FILELINE)
 .set_attr<FCompute>("FCompute<cpu>", DivSqrtDimForward_<cpu>)
 .set_attr<nnvm::FGradient>("FGradient", ElemwiseGradUseNone{"_contrib_div_sqrt_dim"})
-.add_alias("_npx___div_sqrt_dim");
+.add_alias("_npx__div_sqrt_dim");
 
 }  // namespace op
 }  // namespace mxnet
