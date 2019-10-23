@@ -207,16 +207,5 @@ which is computed by::
 .add_argument("rhs", "NDArray-or-Symbol", "The second input")
 .add_arguments(DotParam::__FIELDS__());
 
-NNVM_REGISTER_OP(_backward_batch_dot)
-.set_num_inputs(3)
-.set_num_outputs(2)
-.set_attr_parser(ParamParser<DotParam>)
-.set_attr<FResourceRequest>("FResourceRequest",
-  [](const NodeAttrs& attrs) {
-    return std::vector<ResourceRequest>{ResourceRequest::kTempSpace};
-  })
-.set_attr<nnvm::TIsBackward>("TIsBackward", true)
-.set_attr<FCompute>("FCompute<cpu>", BatchDotBackward_<cpu>);
-
 }  // namespace op
 }  // namespace mxnet
