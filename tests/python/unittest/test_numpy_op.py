@@ -3496,16 +3496,22 @@ def test_np_einsum():
                                                                     _np.dot(args[0].T, _np.dot(_np.ones((2, 2)), args[2].T)),
                                                                     _np.dot(_np.dot(args[0], args[1]).T, _np.ones((2, 2))))),
         # broadcast bug
-        (('ij, ij -> i'), [(1, 4), (2, 4)], lambda *args: (_np.sum(args[1], axis=0)[None, :],
-                                                           _np.tile(args[0], [2, 1]))),
+        ('ij, ij -> i', [(1, 4), (2, 4)], lambda *args: (_np.sum(args[1], axis=0)[None, :],
+                                                         _np.tile(args[0], [2, 1]))),
+        # issue #16576
+        # commented due to long running time
+        # ('abiz,abjz->abij', [(64, 8, 128, 512), (64, 8, 128, 512)], lambda *args: (_np.matmul(_np.ones((64, 8, 128, 128)), args[1]),
+        #                                                                            _np.matmul(_np.ones((64, 8, 128, 128)), args[0]))),
     ]
-    dtypes = ['int32', 'float16', 'float32', 'float64']
+    dtypes = ['float16', 'float32', 'float64', 'int32']
+    acc_type = {'float16': 'float32', 'float32': 'float64', 'float64': 'float64',
+                'int32': 'int64'}
     for hybridize in [False, True]:
         for dtype in dtypes:
             for config in configs:
                 for optimize in [False, True]:
-                    rtol = 1e-0 if dtype == 'float16' else 1e-3
-                    atol = 1e-1 if dtype == 'float16' else 1e-5
+                    rtol = 1e-2 if dtype == 'float16' else 1e-3
+                    atol = 1e-4 if dtype == 'float16' else 1e-5 
                     (subscripts, operands, get_grad) = config
                     test_einsum = TestEinsum(subscripts, optimize)
                     if hybridize:
@@ -3513,11 +3519,11 @@ def test_np_einsum():
                     x = []
                     x_np = []
                     for shape in operands:
-                        x_np.append(_np.array(_np.random.uniform(-10.0, 10.0, shape),
-                                            dtype=dtype))
-                        x.append(np.array(x_np[-1], dtype=dtype))
+                        tmp = _np.array(_np.random.uniform(-1.0, 1.0, shape), dtype=dtype)
+                        x_np.append(tmp.astype(acc_type[dtype]))
+                        x.append(np.array(tmp, dtype=dtype))
                         x[-1].attach_grad()
-                    expected_np = _np.einsum(subscripts, *x_np, optimize=optimize)
+                    expected_np = _np.einsum(subscripts, *x_np, optimize=optimize).astype(dtype)
                     with mx.autograd.record():
                         out_mx = test_einsum(*x)
                     assert out_mx.shape == expected_np.shape
@@ -3535,7 +3541,7 @@ def test_np_einsum():
                     expected_np = _np.einsum(subscripts, *x_np, optimize=optimize)
                     assert_almost_equal(out_mx.asnumpy(), expected_np, rtol=rtol, atol=atol)
                     for (iop, op) in enumerate(x):
-                        assert_almost_equal(op.grad.asnumpy(), get_grad(*x_np)[iop], rtol=rtol, atol=atol)
+                        assert_almost_equal(op.grad.asnumpy(), get_grad(*x_np)[iop].astype(dtype), rtol=rtol, atol=atol)
     configs = [
         (('ij,jk,kl->il'), [(2, 2), (2, 5), (5, 2)]),
         (('ea,fb,abcd,gc,hd->efgh'), [(5, 5), (5, 5), (5, 5, 5, 5), (5, 5), (5, 5)]),
@@ -3545,8 +3551,8 @@ def test_np_einsum():
         for dtype in dtypes:
             for config in configs:
                 (subscripts, operands) = config
-                rtol = 1e-0 if dtype == 'float16' else 1e-2
-                atol = 1e-1 if dtype == 'float16' else 1e-2
+                rtol = 1e-2 if dtype == 'float16' else 1e-3
+                atol = 1e-4 if dtype == 'float16' else 1e-5 
                 grad = []
                 x_np = []
                 for shape in operands:
@@ -3560,7 +3566,8 @@ def test_np_einsum():
                     test_einsum = TestEinsum(subscripts, optimize)
                     if hybridize:
                         test_einsum.hybridize()
-                    expected_np = _np.einsum(subscripts, *x_np, optimize=optimize)
+                    expected_np = _np.einsum(subscripts, *[op.astype(acc_type[dtype]) for op in x_np],
+                                             optimize=optimize).astype(dtype)
                     with mx.autograd.record():
                         out_mx = test_einsum(*x)
                     assert out_mx.shape == expected_np.shape
@@ -3665,6 +3672,69 @@ def test_np_true_divide():
         out_mx = val / a
         out_np = _np.true_divide(val, a.asnumpy())
         assert_almost_equal(out_mx.asnumpy(), out_np, rtol=1e-3, atol=1e-3, use_broadcast=False)
+
+
+@with_seed()
+@use_np
+def test_npx_reshape():
+    class TestNumpyXReshape(HybridBlock):
+        def __init__(self, newshape, reverse):
+            super(TestNumpyXReshape, self).__init__()
+            self._newshape = newshape
+            self._reverse = reverse
+
+        def hybrid_forward(self, F, a, *args, **kwargs):
+            return F.npx.reshape(a, self._newshape, reverse=self._reverse)
+
+    test_cases = [
+        [(2, 3, 5, 5),  (-2, -1),         False, (2, 75)],
+        [(2, 3, 5, 5),  (-2, -2, -1),     False, (2, 3, 25)],
+        [(5, 3, 4, 5),  (-2, -1, -2),     False, (5, 15, 4)],
+        [(2, 3, 5, 4),  (-1, -2, -2),     False, (8, 3, 5)],
+        [(2, 3, 5, 5),  (-2, -2, -2, -2), False, (2, 3, 5, 5)],
+        [(2, 1, 4, 5),  (-2, -3, -2, -2), False, (2, 4, 5)],
+        [(1, 1, 4, 1),  (-3, -3, -2, -2), False, (4, 1)],
+        [(1, 1, 1, 1),  (-3, -3, -3, -3), False, ()],
+        [(2, 4, 5, 3),  (-1, 2, 2, 1),    False, (30, 2, 2, 1)],
+        [(2, 3, 5, 6),  (-4,),            False, (2, 3, 5, 6)],
+        [(2, 3, 5, 6),  (6, 1, -4),       False, (6, 1, 5, 6)],
+        [(2, 3, 5, 6),  (-5, -5),         False, (6, 30)],
+        [(2, 3, 5, 6),  (-5, -1),         False, (6, 30)],
+        [(64,),         (-6, 16, 4),      False, (16, 4)],
+        [(64,),         (-6, 16, -1),     False, (16, 4)],
+        [(64, 1, 2, 3), (-6, 16, -1, -4), False, (16, 4, 1, 2, 3)],
+        [(8, 5, 4, 6),  (-4, -1, 3, -6),  True,  (8, 5, 4, 2, 3)]
+    ]
+    for hybridize in [True, False]:
+        for shape, newshape, reverse, expected_ret_shape in test_cases:
+            for grad_req in ['write', 'add']:
+                # test gluon
+                test_reshape = TestNumpyXReshape(newshape=newshape, reverse=reverse)
+                if hybridize:
+                    test_reshape.hybridize()
+
+                a = mx.np.random.uniform(-1, 1, shape).astype(np.float32)
+                init_a_grad = mx.np.random.uniform(-1, 1, shape).astype(np.float32)
+                a.attach_grad(grad_req=grad_req)
+                if grad_req == 'add':
+                    a.grad[:] = init_a_grad
+                with mx.autograd.record():
+                    y = test_reshape(a)
+                assert y.shape == expected_ret_shape,\
+                    'y.shape={}, expected_ret_shape={}'.format(y.shape, expected_ret_shape)
+                assert_almost_equal(y.asnumpy(), a.asnumpy().reshape(expected_ret_shape), rtol=1e-3, atol=1e-5)
+
+                # test backward
+                mx.autograd.backward(y)
+                expected_grad = _np.ones(shape)
+                if grad_req == 'add':
+                    expected_grad += init_a_grad.asnumpy()
+                assert_almost_equal(a.grad.asnumpy(), expected_grad, rtol=1e-3, atol=1e-5)
+
+                # test imperative
+                npx_out = npx.reshape(a, newshape, reverse=reverse)
+                expected_out = _np.reshape(a.asnumpy(), expected_ret_shape)
+                assert_almost_equal(npx_out.asnumpy(), expected_out, rtol=1e-3, atol=1e-5)
 
 
 if __name__ == '__main__':
