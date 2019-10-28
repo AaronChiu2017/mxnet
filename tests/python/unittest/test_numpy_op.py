@@ -2173,7 +2173,7 @@ def test_np_swapaxes():
 
 @with_seed()
 @use_np
-def test_np_argmax():
+def test_np_argmin_argmax():
     workloads = [
         ((), 0, False),
         ((), -1, False),
@@ -2188,48 +2188,51 @@ def test_np_argmax():
         ((5, 0, 3), 1, True),
     ]
     dtypes = ['float16', 'float32', 'float64']
+    ops = ['argmin', 'argmax']
 
-    class TestArgMax(HybridBlock):
-        def __init__(self, axis=None):
-            super(TestArgMax, self).__init__()
+    class TestArgExtreme(HybridBlock):
+        def __init__(self, op_name, axis=None):
+            super(TestArgExtreme, self).__init__()
+            self._op_name = op_name
             self._axis = axis
 
         def hybrid_forward(self, F, x):
-            return F.np.argmax(x, self._axis)
+            return getattr(x, self._op_name)(self._axis)
 
-    for shape, axis, throw_exception in workloads:
-        for dtype in dtypes:
-            a = np.random.uniform(size=shape, dtype=dtype)
-            if throw_exception:
-                # Cannot use assert_exception because sometimes the main thread
-                # proceeds to `assert False` before the exception is thrown
-                # in the worker thread. Have to use mx.nd.waitall() here
-                # to block the main thread.
-                try:
-                    np.argmax(a, axis)
-                    mx.nd.waitall()
-                    assert False
-                except mx.MXNetError:
-                    pass
-            else:
-                mx_ret = np.argmax(a, axis=axis)
-                np_ret = _np.argmax(a.asnumpy(), axis=axis)
-                assert same(mx_ret.asnumpy(), np_ret)
-
-            for hybridize in [False, True]:
-                net = TestArgMax(axis)
-                if hybridize:
-                    net.hybridize()
+    for op_name in ops:
+        for shape, axis, throw_exception in workloads:
+            for dtype in dtypes:
+                a = np.random.uniform(size=shape, dtype=dtype)
                 if throw_exception:
+                    # Cannot use assert_exception because sometimes the main thread
+                    # proceeds to `assert False` before the exception is thrown
+                    # in the worker thread. Have to use mx.nd.waitall() here
+                    # to block the main thread.
                     try:
-                        net(a)
+                        getattr(np, op_name)(a, axis)
                         mx.nd.waitall()
                         assert False
                     except mx.MXNetError:
                         pass
                 else:
-                    mx_ret = net(a)
+                    mx_ret = getattr(np, op_name)(a, axis=axis)
+                    np_ret = getattr(_np, op_name)(a.asnumpy(), axis=axis)
                     assert same(mx_ret.asnumpy(), np_ret)
+
+                for hybridize in [False, True]:
+                    net = TestArgExtreme(op_name, axis)
+                    if hybridize:
+                        net.hybridize()
+                    if throw_exception:
+                        try:
+                            net(a)
+                            mx.nd.waitall()
+                            assert False
+                        except mx.MXNetError:
+                            pass
+                    else:
+                        mx_ret = net(a)
+                        assert same(mx_ret.asnumpy(), np_ret)
 
 
 @with_seed()
@@ -2490,16 +2493,17 @@ def test_np_choice():
     #     test_sample_without_replacement(np.random.choice, num_classes, shape, 10 ** 5, weight)
 
     # Test hypridize mode:
-    for hybridize in [True, False]:
-        for replace in [True, False]:
-            test_choice = TestUniformChoice(num_classes // 2, replace)
-            test_choice_weighted = TestWeightedChoice(num_classes // 2, replace)
-            if hybridize:
-                test_choice.hybridize()
-                test_choice_weighted.hybridize()
-            weight = np.array(_np.random.dirichlet([1.0] * num_classes))
-            test_indexing_mode(test_choice, num_classes, num_classes // 2, replace, None)
-            test_indexing_mode(test_choice_weighted, num_classes, num_classes // 2, replace, weight)
+    for wtype in ['float16', 'float32', 'float64']:
+        for hybridize in [True, False]:
+            for replace in [True, False]:
+                test_choice = TestUniformChoice(num_classes // 2, replace)
+                test_choice_weighted = TestWeightedChoice(num_classes // 2, replace)
+                if hybridize:
+                    test_choice.hybridize()
+                    test_choice_weighted.hybridize()
+                weight = np.array(_np.random.dirichlet([1.0] * num_classes)).astype(wtype)
+                test_indexing_mode(test_choice, num_classes, num_classes // 2, replace, None)
+                test_indexing_mode(test_choice_weighted, num_classes, num_classes // 2, replace, weight)
 
 
 @with_seed()
@@ -3503,7 +3507,7 @@ def test_np_einsum():
         # ('abiz,abjz->abij', [(64, 8, 128, 512), (64, 8, 128, 512)], lambda *args: (_np.matmul(_np.ones((64, 8, 128, 128)), args[1]),
         #                                                                            _np.matmul(_np.ones((64, 8, 128, 128)), args[0]))),
     ]
-    dtypes = ['float16', 'float32', 'float64', 'int32']
+    dtypes = ['float32', 'float64', 'int32']
     acc_type = {'float16': 'float32', 'float32': 'float64', 'float64': 'float64',
                 'int32': 'int64'}
     for hybridize in [False, True]:
