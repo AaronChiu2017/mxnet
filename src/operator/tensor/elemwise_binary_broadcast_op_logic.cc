@@ -30,7 +30,6 @@ namespace mxnet {
 namespace op {
 
 MXNET_OPERATOR_REGISTER_BINARY_BROADCAST(broadcast_equal)
-.add_alias("_npx_broadcast_equal")
 .describe(R"code(Returns the result of element-wise **equal to** (==) comparison operation with broadcasting.
 
 Example::
@@ -103,7 +102,6 @@ Example::
 .set_attr<nnvm::FGradient>("FGradient", MakeZeroGradNodes);
 
 MXNET_OPERATOR_REGISTER_BINARY_BROADCAST(broadcast_lesser)
-.add_alias("_npx_broadcast_lesser")
 .describe(R"code(Returns the result of element-wise **lesser than** (<) comparison operation with broadcasting.
 
 Example::
@@ -122,7 +120,6 @@ Example::
 .set_attr<nnvm::FGradient>("FGradient", MakeZeroGradNodes);
 
 MXNET_OPERATOR_REGISTER_BINARY_BROADCAST(broadcast_lesser_equal)
-.add_alias("_npx_broadcast_lesser_equal")
 .describe(R"code(Returns the result of element-wise **lesser than or equal to** (<=) comparison operation with broadcasting.
 
 Example::
