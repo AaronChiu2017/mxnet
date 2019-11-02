@@ -87,6 +87,8 @@ from . import rnn
 
 from . import gluon
 
+from . import tvmop
+
 __version__ = base.__version__
 
 # Dist kvstore module which launches a separate process when role is set to "server".
@@ -99,3 +101,4 @@ from . import kvstore_server
 
 from . import numpy_op_signature
 from . import numpy_dispatch_protocol
+from . import numpy_op_fallback

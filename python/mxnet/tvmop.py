@@ -1,5 +1,3 @@
-#!/usr/bin/env bash
-
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -17,9 +15,23 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# build and install are separated so changes to build don't invalidate
-# the whole docker cache for the image
+# coding: utf-8
+"""Init tvm ops."""
+from .runtime import Features
 
-set -ex
-wget -q --no-check-certificate -O /tmp/mklml.tgz https://github.com/intel/mkl-dnn/releases/download/v0.21/mklml_lnx_2019.0.5.20190502.tgz
-tar -zxf /tmp/mklml.tgz && cp -rf mklml_*/* /usr/local/ && rm -rf mklml_*
+if Features().is_enabled("TVM_OP"):
+    import json
+
+    from ._ctypes.space import _set_tvm_op_config
+    from .base import check_call, _LIB, c_str
+    from .space import ConfigSpaces
+    from .libinfo import find_lib_path, find_conf_path
+
+    _LIB_TVM_OP = find_lib_path("libtvmop")
+    check_call(_LIB.MXLoadTVMOp(c_str(_LIB_TVM_OP[0])))
+
+    # op sch config
+    _CONF_TVM_OP = find_conf_path("tvmop")
+    with open(_CONF_TVM_OP[0], "r") as f:
+        ret = ConfigSpaces.from_json_dict(json.load(f))
+    _set_tvm_op_config(ret)

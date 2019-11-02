@@ -33,12 +33,12 @@ __all__ = ['zeros', 'ones', 'full', 'add', 'subtract', 'multiply', 'divide', 'mo
            'absolute', 'exp', 'expm1', 'arcsin', 'arccos', 'arctan', 'sign', 'log', 'degrees', 'log2',
            'log1p', 'rint', 'radians', 'reciprocal', 'square', 'negative', 'fix', 'ceil', 'floor',
            'trunc', 'logical_not', 'arcsinh', 'arccosh', 'arctanh', 'tensordot', 'histogram', 'eye',
-           'linspace', 'logspace', 'expand_dims', 'tile', 'arange', 'split', 'vsplit', 'concatenate',
-           'stack', 'vstack', 'dstack', 'mean', 'maximum', 'minimum', 'swapaxes', 'clip', 'argmax', 'argmin',
-           'std', 'var', 'indices', 'copysign', 'ravel', 'hanning', 'hamming', 'blackman', 'flip',
+           'linspace', 'logspace', 'expand_dims', 'tile', 'arange', 'split', 'vsplit', 'concatenate', 'append',
+           'stack', 'vstack', 'column_stack', 'dstack', 'mean', 'maximum', 'minimum', 'swapaxes', 'clip', 'argmax',
+           'argmin', 'std', 'var', 'indices', 'copysign', 'ravel', 'hanning', 'hamming', 'blackman', 'flip',
            'around', 'hypot', 'rad2deg', 'deg2rad', 'unique', 'lcm', 'tril', 'identity', 'take',
            'ldexp', 'vdot', 'inner', 'outer', 'equal', 'not_equal', 'greater', 'less', 'greater_equal', 'less_equal',
-           'hsplit', 'rot90', 'einsum', 'true_divide', 'nonzero']
+           'hsplit', 'rot90', 'einsum', 'true_divide', 'nonzero', 'shares_memory', 'may_share_memory', 'diff', 'resize']
 
 
 @set_module('mxnet.ndarray.numpy')
@@ -2920,8 +2920,64 @@ def concatenate(seq, axis=0, out=None):
     -------
     res : ndarray
         The concatenated array.
+
+    Examples
+    --------
+    >>> a = np.array([[1, 2], [3, 4]])
+    >>> b = np.array([[5, 6]])
+    >>> np.concatenate((a, b), axis=0)
+    array([[1., 2.],
+           [3., 4.],
+           [5., 6.]])
+
+    >>> np.concatenate((a, b), axis=None)
+    array([1., 2., 3., 4., 5., 6.])
+
+    >>> np.concatenate((a, b.T), axis=1)
+    array([[1., 2., 5.],
+           [3., 4., 6.]])
     """
-    return _npi.concatenate(*seq, dim=axis, out=out)
+    return _npi.concatenate(*seq, axis=axis, out=out)
+
+
+@set_module('mxnet.ndarray.numpy')
+def append(arr, values, axis=None):  # pylint: disable=redefined-outer-name
+    """
+    Append values to the end of an array.
+
+    Parameters
+    ----------
+    arr : ndarray
+        Values are appended to a copy of this array.
+    values : ndarray
+        These values are appended to a copy of `arr`.  It must be of the
+        correct shape (the same shape as `arr`, excluding `axis`).  If
+        `axis` is not specified, `values` can be any shape and will be
+        flattened before use.
+    axis : int, optional
+        The axis along which `values` are appended.  If `axis` is not
+        given, both `arr` and `values` are flattened before use.
+
+    Returns
+    -------
+    append : ndarray
+        A copy of `arr` with `values` appended to `axis`.  Note that
+        `append` does not occur in-place: a new array is allocated and
+        filled.  If `axis` is None, `out` is a flattened array.
+
+    Examples
+    --------
+    >>> np.append(np.array([1, 2, 3]), np.array([[4, 5, 6],[7, 8, 9]]))
+    array([1., 2., 3., 4., 5., 6., 7., 8., 9.])
+
+    When `axis` is specified, `values` must have the correct shape.
+
+    >>> np.append(np.array([[1, 2, 3], [4, 5, 6]]), np.array([[7, 8, 9]]), axis=0)
+    array([[1., 2., 3.],
+           [4., 5., 6.],
+           [7., 8., 9.]])
+    """
+    return _npi.concatenate(arr, values, axis=axis, out=None)
 
 
 @set_module('mxnet.ndarray.numpy')
@@ -3002,6 +3058,36 @@ def vstack(arrays, out=None):
 
     arrays = get_list(arrays)
     return _npi.vstack(*arrays)
+
+
+@set_module('mxnet.ndarray.numpy')
+def column_stack(tup):
+    """
+    Stack 1-D arrays as columns into a 2-D array.
+    Take a sequence of 1-D arrays and stack them as columns
+    to make a single 2-D array. 2-D arrays are stacked as-is,
+    just like with `hstack`.  1-D arrays are turned into 2-D columns
+    first.
+
+    Returns
+    --------
+    stacked : 2-D array
+        The array formed by stacking the given arrays.
+
+    See Also
+    --------
+    stack, hstack, vstack, concatenate
+
+    Examples
+    --------
+    >>> a = np.array((1,2,3))
+    >>> b = np.array((2,3,4))
+    >>> np.column_stack((a,b))
+    array([[1., 2.],
+           [2., 3.],
+           [3., 4.]])
+    """
+    return _npi.column_stack(*tup)
 
 
 @set_module('mxnet.ndarray.numpy')
@@ -4909,3 +4995,176 @@ def nonzero(a):
     """
     out = _npi.nonzero(a).transpose()
     return tuple([out[i] for i in range(len(out))])
+
+
+@set_module('mxnet.ndarray.numpy')
+def shares_memory(a, b, max_work=None):
+    """
+    Determine if two arrays share memory
+
+    Parameters
+    ----------
+    a, b : ndarray
+        Input arrays
+
+    Returns
+    -------
+    out : bool
+
+    See Also
+    --------
+    may_share_memory
+
+    Examples
+    --------
+    >>> np.may_share_memory(np.array([1,2]), np.array([5,8,9]))
+    False
+
+    This function differs from the original `numpy.shares_memory
+    <https://docs.scipy.org/doc/numpy/reference/generated/numpy.shares_memory.html>`_ in
+    the following way(s):
+
+    - Does not support `max_work`, it is a dummy argument
+    - Actually it is same as `may_share_memory` in MXNet DeepNumPy
+    """
+    return _npi.share_memory(a, b).item()
+
+
+@set_module('mxnet.ndarray.numpy')
+def may_share_memory(a, b, max_work=None):
+    """
+    Determine if two arrays might share memory
+
+    A return of True does not necessarily mean that the two arrays
+    share any element.  It just means that they *might*.
+
+    Only the memory bounds of a and b are checked by default.
+
+    Parameters
+    ----------
+    a, b : ndarray
+        Input arrays
+
+    Returns
+    -------
+    out : bool
+
+    See Also
+    --------
+    shares_memory
+
+    Examples
+    --------
+    >>> np.may_share_memory(np.array([1,2]), np.array([5,8,9]))
+    False
+    >>> x = np.zeros([3, 4])
+    >>> np.may_share_memory(x[:,0], x[:,1])
+    True
+
+    This function differs from the original `numpy.may_share_memory
+    <https://docs.scipy.org/doc/numpy/reference/generated/numpy.may_share_memory.html>`_ in
+    the following way(s):
+
+    - Does not support `max_work`, it is a dummy argument
+    - Actually it is same as `shares_memory` in MXNet DeepNumPy
+    """
+    return _npi.share_memory(a, b).item()
+
+
+@set_module('mxnet.ndarray.numpy')
+def diff(a, n=1, axis=-1, prepend=None, append=None):  # pylint: disable=redefined-outer-name
+    r"""
+    Calculate the n-th discrete difference along the given axis.
+
+    Parameters
+    ----------
+    a : ndarray
+        Input array
+    n : int, optional
+        The number of times values are differenced. If zero, the input is returned as-is.
+    axis : int, optional
+        The axis along which the difference is taken, default is the last axis.
+    prepend, append : ndarray, optional
+        Not supported yet
+
+    Returns
+    -------
+    diff : ndarray
+        The n-th differences.
+        The shape of the output is the same as a except along axis where the dimension is smaller by n.
+        The type of the output is the same as the type of the difference between any two elements of a.
+
+    Examples
+    --------
+    >>> x = np.array([1, 2, 4, 7, 0])
+    >>> np.diff(x)
+    array([ 1,  2,  3, -7])
+    >>> np.diff(x, n=2)
+    array([  1,   1, -10])
+
+    >>> x = np.array([[1, 3, 6, 10], [0, 5, 6, 8]])
+    >>> np.diff(x)
+    array([[2, 3, 4],
+        [5, 1, 2]])
+    >>> np.diff(x, axis=0)
+    array([[-1,  2,  0, -2]])
+
+    Notes
+    -----
+    Optional inputs `prepend` and `append` are not supported yet
+    """
+    if (prepend or append):
+        raise NotImplementedError('prepend and append options are not supported yet')
+    return _npi.diff(a, n=n, axis=axis)
+
+
+@set_module('mxnet.ndarray.numpy')
+def resize(a, new_shape):
+    """
+    Return a new array with the specified shape.
+    If the new array is larger than the original array, then the new
+    array is filled with repeated copies of `a`.  Note that this behavior
+    is different from a.resize(new_shape) which fills with zeros instead
+    of repeated copies of `a`.
+
+    Parameters
+    ----------
+    a : ndarray
+        Array to be resized.
+    new_shape : int or tuple of int
+        Shape of resized array.
+
+    Returns
+    -------
+    reshaped_array : ndarray
+        The new array is formed from the data in the old array, repeated
+        if necessary to fill out the required number of elements.  The
+        data are repeated in the order that they are stored in memory.
+
+    See Also
+    --------
+    ndarray.resize : resize an array in-place.
+
+    Notes
+    -----
+    Warning: This functionality does **not** consider axes separately,
+    i.e. it does not apply interpolation/extrapolation.
+    It fills the return array with the required number of elements, taken
+    from `a` as they are laid out in memory, disregarding strides and axes.
+    (This is in case the new shape is smaller. For larger, see above.)
+    This functionality is therefore not suitable to resize images,
+    or data where each axis represents a separate and distinct entity.
+
+    Examples
+    --------
+    >>> a = np.array([[0, 1], [2, 3]])
+    >>> np.resize(a, (2, 3))
+    array([[0., 1., 2.],
+           [3., 0., 1.]])
+    >>> np.resize(a, (1, 4))
+    array([[0., 1., 2., 3.]])
+    >>> np.resize(a,(2, 4))
+    array([[0., 1., 2., 3.],
+           [0., 1., 2., 3.]])
+    """
+    return _npi.resize_fallback(a, new_shape=new_shape)
