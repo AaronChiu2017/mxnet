@@ -2434,6 +2434,23 @@ fixed-size items.
         return Context(Context.devtype2str[dev_typeid.value], dev_id.value)
 
     @property
+    def ctx(self):
+        """Device context of the array. Has the same meaning as context.
+
+        Examples
+        --------
+        >>> x = mx.nd.array([1, 2, 3, 4])
+        >>> x.ctx
+        cpu(0)
+        >>> type(x.ctx)
+        <class 'mxnet.context.Context'>
+        >>> y = mx.nd.zeros((2,3), mx.gpu(0))
+        >>> y.ctx
+        gpu(0)
+        """
+        return self.context
+
+    @property
     def dtype(self):
         """Data-type of the array's elements.
 
