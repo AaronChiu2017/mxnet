@@ -63,6 +63,7 @@ enum NDArrayStorageType {
   kDefaultStorage,         // dense
   kRowSparseStorage,       // row sparse
   kCSRStorage,             // csr
+  kRaggedStorage,          // ragged ndarray
 };
 
 enum NDArrayFormatErr {
