@@ -35,13 +35,14 @@ __all__ = ['shape', 'zeros', 'zeros_like', 'ones', 'ones_like', 'full', 'full_li
            'log1p', 'rint', 'radians', 'reciprocal', 'square', 'negative', 'fix', 'ceil', 'floor', 'histogram',
            'trunc', 'logical_not', 'arcsinh', 'arccosh', 'arctanh', 'argsort', 'tensordot', 'eye', 'linspace',
            'logspace', 'expand_dims', 'tile', 'arange', 'array_split', 'split', 'vsplit', 'concatenate', 'append',
-           'stack', 'vstack', 'column_stack', 'dstack', 'average', 'mean', 'maximum', 'minimum', 'swapaxes', 'clip',
-           'argmax', 'argmin', 'std', 'var', 'indices', 'copysign', 'ravel', 'unravel_index', 'hanning', 'hamming',
-           'blackman', 'flip', 'flipud', 'fliplr', 'around', 'round', 'hypot', 'bitwise_xor', 'bitwise_or',
-           'rad2deg', 'deg2rad', 'unique', 'lcm', 'tril', 'identity', 'take', 'ldexp', 'vdot', 'inner', 'outer',
-           'equal', 'not_equal', 'greater', 'less', 'greater_equal', 'less_equal', 'hsplit', 'rot90', 'einsum',
-           'true_divide', 'nonzero', 'shares_memory', 'may_share_memory', 'diff', 'resize', 'nan_to_num', 'where',
-           'bincount']
+           'stack', 'vstack', 'row_stack', 'column_stack', 'hstack', 'dstack',
+           'average', 'mean', 'maximum', 'minimum',
+           'swapaxes', 'clip', 'argmax', 'argmin', 'std', 'var', 'indices', 'copysign', 'ravel', 'unravel_index',
+           'hanning', 'hamming', 'blackman', 'flip', 'flipud', 'fliplr', 'around', 'round', 'hypot', 'bitwise_xor',
+           'bitwise_or', 'rad2deg', 'deg2rad', 'unique', 'lcm', 'tril', 'identity', 'take', 'ldexp', 'vdot',
+           'inner', 'outer', 'equal', 'not_equal', 'greater', 'less', 'greater_equal', 'less_equal', 'hsplit',
+           'rot90', 'einsum', 'true_divide', 'nonzero', 'shares_memory', 'may_share_memory', 'diff', 'resize',
+           'nan_to_num', 'where', 'bincount']
 
 
 @set_module('mxnet.ndarray.numpy')
@@ -3716,6 +3717,51 @@ def vstack(arrays, out=None):
 
 
 @set_module('mxnet.ndarray.numpy')
+def row_stack(arrays):
+    r"""Stack arrays in sequence vertically (row wise).
+    This is equivalent to concatenation along the first axis after 1-D arrays
+    of shape `(N,)` have been reshaped to `(1,N)`. Rebuilds arrays divided by
+    `vsplit`.
+    This function makes most sense for arrays with up to 3 dimensions. For
+    instance, for pixel-data with a height (first axis), width (second axis),
+    and r/g/b channels (third axis). The functions `concatenate` and `stack`
+    provide more general stacking and concatenation operations.
+    Parameters
+    ----------
+    tup : sequence of ndarrays
+        The arrays must have the same shape along all but the first axis.
+        1-D arrays must have the same length.
+    Returns
+    -------
+    stacked : ndarray
+        The array formed by stacking the given arrays, will be at least 2-D.
+    Examples
+    --------
+    >>> a = np.array([1, 2, 3])
+    >>> b = np.array([2, 3, 4])
+    >>> np.vstack((a, b))
+    array([[1., 2., 3.],
+            [2., 3., 4.]])
+    >>> a = np.array([[1], [2], [3]])
+    >>> b = np.array([[2], [3], [4]])
+    >>> np.vstack((a, b))
+    array([[1.],
+            [2.],
+            [3.],
+            [2.],
+            [3.],
+            [4.]])
+    """
+    def get_list(arrays):
+        if not hasattr(arrays, '__getitem__') and hasattr(arrays, '__iter__'):
+            raise ValueError("expected iterable for arrays but got {}".format(type(arrays)))
+        return [arr for arr in arrays]
+
+    arrays = get_list(arrays)
+    return _npi.vstack(*arrays)
+
+
+@set_module('mxnet.ndarray.numpy')
 def column_stack(tup):
     """
     Stack 1-D arrays as columns into a 2-D array.
@@ -3743,6 +3789,45 @@ def column_stack(tup):
            [3., 4.]])
     """
     return _npi.column_stack(*tup)
+
+
+@set_module('mxnet.ndarray.numpy')
+def hstack(arrays):
+    """
+    Stack arrays in sequence horizontally (column wise).
+    This is equivalent to concatenation along the second axis,
+    except for 1-D arrays where it concatenates along the first axis.
+    Rebuilds arrays divided by hsplit.
+    This function makes most sense for arrays with up to 3 dimensions.
+    For instance, for pixel-data with a height (first axis), width (second axis),
+    and r/g/b channels (third axis). The functions concatenate,
+    stack and block provide more general stacking and concatenation operations.
+
+    Parameters
+    ----------
+    tup : sequence of ndarrays
+        The arrays must have the same shape along all but the second axis, except 1-D arrays which can be any length.
+
+    Returns
+    -------
+    stacked : ndarray
+        The array formed by stacking the given arrays.
+
+    Examples
+    --------
+    >>> from mxnet import np,npx
+    >>> a = np.array((1,2,3))
+    >>> b = np.array((2,3,4))
+    >>> np.hstack((a,b))
+    array([1., 2., 3., 2., 3., 4.])
+    >>> a = np.array([[1],[2],[3]])
+    >>> b = np.array([[2],[3],[4]])
+    >>> np.hstack((a,b))
+    array([[1., 2.],
+           [2., 3.],
+           [3., 4.]])
+    """
+    return _npi.hstack(*arrays)
 
 
 @set_module('mxnet.ndarray.numpy')
