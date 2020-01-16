@@ -48,7 +48,7 @@ def ragged_array(object, dtype=None, ctx=None):
 
     """
     if isinstance(object, (ndarray, _np.ndarray)):
-
+        pass
     elif isinstance(object, ())
 
 
