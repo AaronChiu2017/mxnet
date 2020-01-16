@@ -1223,12 +1223,11 @@ unittest_ubuntu_cpu_R() {
     build_ccache_wrappers
     echo  "MAKEFLAGS = -j"$(nproc) > ~/.R/Makevars
     # make -j not supported
-    make rpkg                           \
-        USE_BLAS=openblas               \
+    make -f R-package/Makefile rpkg \
         R_LIBS=/tmp/r-site-library
 
     R CMD INSTALL --library=/tmp/r-site-library R-package
-    make rpkgtest R_LIBS=/tmp/r-site-library
+    make -f R-package/Makefile rpkgtest R_LIBS=/tmp/r-site-library
 }
 
 unittest_ubuntu_minimal_R() {
@@ -1239,8 +1238,7 @@ unittest_ubuntu_minimal_R() {
     build_ccache_wrappers
     echo  "MAKEFLAGS = -j"$(nproc) > ~/.R/Makevars
     # make -j not supported
-    make rpkg                           \
-        USE_BLAS=openblas               \
+    make -f R-package/Makefile rpkg \
         R_LIBS=/tmp/r-site-library
 
     R CMD INSTALL --library=/tmp/r-site-library R-package
@@ -1269,11 +1267,10 @@ unittest_ubuntu_gpu_R() {
     build_ccache_wrappers
     echo  "MAKEFLAGS = -j"$(nproc) > ~/.R/Makevars
     # make -j not supported
-    make rpkg                           \
-        USE_BLAS=openblas               \
+    make -f R-package/Makefile rpkg \
         R_LIBS=/tmp/r-site-library
     R CMD INSTALL --library=/tmp/r-site-library R-package
-    make rpkgtest R_LIBS=/tmp/r-site-library R_GPU_ENABLE=1
+    make -f R-package/Makefile rpkgtest R_LIBS=/tmp/r-site-library R_GPU_ENABLE=1
 }
 
 unittest_ubuntu_cpu_julia() {
@@ -1525,7 +1522,9 @@ nightly_test_large_tensor() {
     set -ex
     export PYTHONPATH=./python/
     export DMLC_LOG_STACK_TRACE_DEPTH=10
-    nosetests-3.4 tests/nightly/test_large_array.py
+    nosetests-3.4 tests/nightly/test_large_array.py:test_tensor
+    nosetests-3.4 tests/nightly/test_large_array.py:test_nn
+    nosetests-3.4 tests/nightly/test_large_array.py:test_basic
 }
 
 #Tests Amalgamation Build with 5 different sets of flags

@@ -986,10 +986,10 @@ class ndarray(NDArray):
     # pylint: enable= invalid-name, undefined-variable
 
     def all(self, axis=None, out=None, keepdims=False):
-        raise NotImplementedError
+        return _mx_nd_np.all(self, axis=axis, keepdims=keepdims, out=out)
 
     def any(self, axis=None, out=None, keepdims=False):
-        raise NotImplementedError
+        return _mx_nd_np.any(self, axis=axis, keepdims=keepdims, out=out)
 
     def as_nd_ndarray(self):
         """Convert mxnet.numpy.ndarray to mxnet.ndarray.NDArray to use its fluent methods."""
@@ -2321,7 +2321,7 @@ def full(shape, fill_value, dtype=None, order='C', ctx=None, out=None):
     ----------
     shape : int or sequence of ints
         Shape of the new array, e.g., ``(2, 3)`` or ``2``.
-    fill_value : scalar
+    fill_value : scalar or ndarray
         Fill value.
     dtype : data-type, optional
         The desired data-type for the array. The default, `None`, means
@@ -2339,6 +2339,8 @@ def full(shape, fill_value, dtype=None, order='C', ctx=None, out=None):
     -------
     out : ndarray
         Array of `fill_value` with the given shape, dtype, and order.
+        If `fill_value` is an ndarray, out will have the same context as `fill_value`
+        regardless of the provided `ctx`.
 
     Notes
     -----
