@@ -58,6 +58,10 @@ namespace rowsparse {
 enum RowSparseAuxType {kIdx};
 }
 
+namespace ragged {
+enum RaggedAuxType {kNestedRowSplits, kRowSplitsIndptr, kRaggedSizes};
+}
+
 enum NDArrayStorageType {
   kUndefinedStorage = -1,  // undefined storage
   kDefaultStorage,         // dense
@@ -102,6 +106,14 @@ class NDArray {
         entry_(nullptr) {
   }
   /*! \brief constructor for NDArray with storage type
+   *  \param stype Storage type of the NDArray. This is used to support sparse ndarray and ragged ndarray
+   *  \param shape Shape of the NDArray
+   *  \param ctx context of the NDArray
+   *  \param delay_alloc whether delay the allocation
+   *  \param dtype data type of the ndarray
+   *  \param aux_types The data type of the auxiliary data that are bound to the NDArray
+   *  \param aux_shapes The shapes of the auxiliary data
+   *  \param storage_shape The shape of the inner storage
    */
   NDArray(const NDArrayStorageType stype, const mxnet::TShape &shape, Context ctx,
           bool delay_alloc = true, int dtype = mshadow::default_type_flag,
@@ -296,7 +308,7 @@ class NDArray {
     auto type = aux_type(i);
     MSHADOW_TYPE_SWITCH(type, DType, {
       auto dptr = static_cast<DType*>(ptr_->aux_handles[i].dptr);
-      CHECK(stype == kRowSparseStorage || stype == kCSRStorage)
+      CHECK(stype == kRowSparseStorage || stype == kCSRStorage || stype == kRaggedStorage)
             << "Unexpected storage type: " << stype;
       res = TBlob(dptr, shape, ptr_->aux_handles[i].ctx.dev_mask(), type);
     });
@@ -821,8 +833,23 @@ class NDArray {
      */
     Storage::Handle shandle;
     /*! \brief storage handles for aux data (e.g index)
-               for row_sparse, aux_handles[0] = indices
-               for csr, aux_handles[0] = indptr, aux_handles[1] = indices
+               for row_sparse,
+                    aux_handles[0] = indices
+               for csr,
+                    aux_handles[0] = indptr, aux_handles[1] = indices
+               for ragged,
+                    aux_handles[0] = nested_row_splits
+                        If nested_depth == 0, it will be empty
+                        If nested_depth == 1,
+                            it stores the starting positions of the inner ndarrays
+                        If nested_depth > 1,
+                            for i between 0 and depth - 2
+                                nested_row_splits[indptr[i]:indptr[i+1]] stores the
+                    aux_handles[1] = row_splits_indptr
+                        It stores the starting and ending positions of the row_splits
+                    aux_handles[2] = ragged_sizes
+                        It stores the shapes of each array at the ragged dimensions.
+                        Will have shape (N, #Inner Ragged)
     */
     std::vector<Storage::Handle> aux_handles;
 
@@ -926,7 +953,7 @@ class NDArray {
       shandle.ctx = ctx;
       var = Engine::Get()->NewVariable();
       // aux_handles always reflect the correct number of aux data
-      for (size_t i = 0; i < aux_shapes.size(); i++) {
+      for (size_t i = 0; i < aux_handles.size(); i++) {
         CheckAndAllocAuxData(i, aux_shapes[i]);
         // this line is needed in case when aux_shapes[i].Size() = 0
         // aux_handles[i] will not be updated and take only default value.
