@@ -373,6 +373,43 @@ void CastStorageRspRspImpl(const OpContext& ctx, const NDArray& rsp,
   mxnet_op::copy(s, idx, from_idx);
 }
 
+template <typename xpu>
+void CastStorageDnsRaggedImpl(const OpContext& ctx, const TBlob& dns, NDArray* ragged_arr) {
+  mshadow::Stream<xpu>* s = ctx.get_stream<xpu>();
+  CHECK(ragged_arr != nullptr);
+  CHECK_EQ(ragged_arr->storage_type(), kRaggedStorage);
+  CHECK_EQ(dns.shape_, ragged_arr->shape());
+  ragged_arr->CheckAndAllocData(mshadow::Shape1(dns.shape_.Size()));
+  ragged_arr->CheckAndAllocAuxData();
+  MSHADOW_TYPE_SWITCH(dns.type_flag_, DType, {  // data type
+    MSHADOW_IDX_TYPE_SWITCH(ragged_arr->aux_type(ragged::kIndPtr), IType, {  // indptr type
+        MSHADOW_IDX_TYPE_SWITCH(csr->aux_type(csr::kIdx), CType, {  // col idx type
+            const dim_t num_rows = dns.shape_[0];
+            const dim_t num_cols = dns.shape_[1];
+            csr->CheckAndAllocAuxData(csr::kIndPtr, mshadow::Shape1(num_rows+1));
+            IType* indptr = csr->aux_data(csr::kIndPtr).dptr<IType>();
+            DType* dns_data = dns.dptr<DType>();
+            dim_t num_threads = num_rows;
+            mxnet_op::Kernel<FillCsrIndPtr, cpu>::Launch(s, num_threads, indptr,
+                                                         dns_data, num_rows, num_cols);
+            // single thread to accumulate indptr
+            // indptr[num_rows] indicates the number of non-zero elements
+            indptr[0] = 0;
+            for (dim_t i = 0; i < num_rows; ++i) {
+              indptr[i+1] += indptr[i];
+            }
+            // allocate column idx array and value array
+            csr->CheckAndAllocAuxData(csr::kIdx, Shape1(static_cast<index_t>(indptr[num_rows])));
+            csr->CheckAndAllocData(Shape1(static_cast<index_t>(indptr[num_rows])));
+            // fill col_idx and value arrays of the csr
+            mxnet_op::Kernel<FillCsrColIdxAndVals, cpu>::Launch(s, num_threads,
+            csr->data().dptr<DType>(), csr->aux_data(csr::kIdx).dptr<CType>(),
+            indptr, dns_data, num_rows, num_cols);
+        });
+    });
+  });
+}
+
 template<typename xpu>
 void CastStorageComputeImpl(const OpContext& ctx,
                             const NDArray& input,
@@ -397,6 +434,9 @@ void CastStorageComputeImpl(const OpContext& ctx,
   } else if (src_stype == kRowSparseStorage && dst_stype == kRowSparseStorage) {
     NDArray ret = output;
     CastStorageRspRspImpl<xpu>(ctx, input, &ret);
+  } else if (src_stype == kDefaultStorage && dst_stype == kRaggedStorage) {
+    NDArray ret = output;
+    CastStorageDnsRaggedImpl<xpu>(ctx, input, &ret);
 #if MXNET_USE_MKLDNN == 1
   } else if (src_stype == kDefaultStorage && dst_stype == kDefaultStorage) {
     CHECK_EQ(output.ctx().dev_type, input.ctx().dev_type);
@@ -426,6 +466,7 @@ struct CastStorageParam : public dmlc::Parameter<CastStorageParam> {
     .add_enum("default", kDefaultStorage)
     .add_enum("row_sparse", kRowSparseStorage)
     .add_enum("csr", kCSRStorage)
+    .add_enum("ragged", kRaggedStorage)
     .describe("Output storage type.");
   }
 };
@@ -445,7 +486,10 @@ inline bool CastStorageInferStorageType(const nnvm::NodeAttrs& attrs,
   const auto& in_stype = in_attrs->at(0);
   const auto& param_stype = static_cast<NDArrayStorageType>(param.stype);
   bool dispatched = false;
-  // dns -> dns, dns -> rsp, dns -> csr
+  // dns -> [dns, rsp, csr, ragged]
+  // rsp -> [dns, rsp]
+  // csr -> [dns, csr]
+  // ragged -> [dns, ragged]
   if (!dispatched && in_stype == kDefaultStorage && param_stype == kDefaultStorage) {
     // dns -> dns
     DispatchMode mode = DispatchMode::kFCompute;
@@ -458,8 +502,9 @@ inline bool CastStorageInferStorageType(const nnvm::NodeAttrs& attrs,
     dispatched = storage_type_assign(out_attrs, kDefaultStorage, dispatch_mode, mode);
   }
   if (!dispatched && in_stype == kDefaultStorage &&
-    (param_stype == kRowSparseStorage || param_stype == kCSRStorage)) {
-    // dns -> rsp, dns -> csr
+    (param_stype == kRowSparseStorage || param_stype == kCSRStorage
+     || param_stype == kRaggedStorage)) {
+    // dns -> rsp, dns -> csr, dns -> ragged
     dispatched = storage_type_assign(out_attrs, param_stype,
                                      dispatch_mode, DispatchMode::kFComputeEx);
   }
@@ -472,6 +517,10 @@ inline bool CastStorageInferStorageType(const nnvm::NodeAttrs& attrs,
   if (!dispatched && in_stype == kCSRStorage &&
       (param_stype == kCSRStorage || param_stype == kDefaultStorage)) {
     // csr -> csr, csr -> dns
+    dispatched = storage_type_assign(out_attrs, param_stype,
+                                     dispatch_mode, DispatchMode::kFComputeEx);
+  }
+  if (!dispatched && in_stype == kRaggedStorage && (param_stype == kDefaultStorage)) {
     dispatched = storage_type_assign(out_attrs, param_stype,
                                      dispatch_mode, DispatchMode::kFComputeEx);
   }

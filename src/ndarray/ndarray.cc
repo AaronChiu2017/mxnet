@@ -61,8 +61,7 @@ NDArray::NDArray(const NDArrayStorageType stype, const mxnet::TShape &shape, Con
     } else if (stype == kRaggedStorage) {
       aux_types = {mshadow::kInt64, mshadow::kInt64, mshadow::kInt64};
     } else {
-        LOG(FATAL) << "Unknown storage type " << stype;
-      }
+      LOG(FATAL) << "Unknown storage type " << stype;
     }
   }
   // Assign default shapes if not given
@@ -73,12 +72,12 @@ NDArray::NDArray(const NDArrayStorageType stype, const mxnet::TShape &shape, Con
       aux_shapes = {mxnet::TShape(mshadow::Shape1(0))};
     } else if (stype == kCSRStorage) {
       // aux shapes for indptr and indices
-      aux_shapes = {mxnet::TShape(mshadow::Shape1(0)), mxnet::TShape(mshadow::Shape1(0))};
+      aux_shapes = {mxnet::TShape(mshadow::Shape1(0)),
+                    mxnet::TShape(mshadow::Shape1(0))};
     } else if (stype == kRaggedStorage) {
-      aux_shapes = {mxnet::TShape(mshadow::Shape1(0)),     // nested_row_splits
-                    mxnet::TShape(mshadow::Shape1(0)),     // row_splits_indptr
-                    mxnet::TShape(mshadow::Shape2(0, 0)),  // ragged_sizes
-                    mxnet::TShape(mshadow::Shape1(0))};    // additional structural information of the RaggedNDArray, including the (nested_depth,) and the inner ragged axes
+      aux_shapes = {mxnet::TShape(mshadow::Shape1(0)),      // nested_row_splits
+                    mxnet::TShape(mshadow::Shape1(0)),      // row_splits_indptr
+                    mxnet::TShape(mshadow::Shape2(0, 0))};  // ragged_sizes
     } else {
       LOG(FATAL) << "Unknown storage type " << stype;
     }
@@ -91,7 +90,7 @@ NDArray::NDArray(const NDArrayStorageType stype, const mxnet::TShape &shape, Con
     } else if (stype == kCSRStorage) {
       storage_shape = aux_shapes[csr::kIdx];
     } else if (stype == kRaggedStorage) {
-      LOG(FATAL) << "RaggedNDArray does not support"; //TODO(sxjscience) Revisit
+      storage_shape = shape;
     } else {
       LOG(FATAL) << "Unknown storage type " << stype;
     }

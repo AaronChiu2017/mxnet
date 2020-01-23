@@ -22,18 +22,19 @@
 
 from .ndarray import NDArray, _DTYPE_NP_TO_MX, _GRAD_REQ_MAP
 from ..context import current_context
-from ..numpy import ndarray
-import numpy as _np
+from .. import numpy as mnp
+import numpy as np
 
 
 
-def ragged_array(object, dtype=None, ctx=None):
+def array(object, dtype=None, ctx=None):
     """
 
     Parameters
     ----------
     object : array_like or `numpy.ndarray` or `mxnet.numpy.ndarray` or
-     `mxnet.ragged.RaggedNDArray`. An array, any object exposing the array interface,
+     `mxnet.ragged.RaggedNDArray` or a nested list of these objects.
+     An array, any object exposing the array interface,
       an object whose __array__ method returns an array, or any (nested) sequence.
     dtype : data-type, optional
         The desired data-type for the array. Default is `float32`.
@@ -47,10 +48,12 @@ def ragged_array(object, dtype=None, ctx=None):
         An array object satisfying the specified requirements.
 
     """
-    if isinstance(object, (ndarray, _np.ndarray)):
-        pass
+    if isinstance(object, (np.ndarray, mnp.ndarray)):
+        arr = mnp.array(object, dtype=dtype, ctx=ctx)
+        
     elif isinstance(object, ())
-
+        pass
+    elif isinstance()
 
 
 

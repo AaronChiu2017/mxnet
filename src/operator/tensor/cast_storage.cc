@@ -48,6 +48,8 @@ The storage type of ``cast_storage`` output depends on stype parameter:
 - cast_storage(default, 'row_sparse') = row_sparse
 - cast_storage(csr, 'csr') = csr
 - cast_storage(row_sparse, 'row_sparse') = row_sparse
+- cast_storage(ragged, 'default') = default
+- cast_storage(default, 'ragged') = ragged
 
 Example::
 
@@ -67,6 +69,10 @@ Example::
     csr.indices = [1, 0, 2]
     csr.values = [ 1.,  2.,  3.]
     csr.indptr = [0, 1, 3, 3, 3]
+
+    # cast to ragged storage type
+    ragged = cast_storage(dense, 'ragged')
+    ragged.nested_row
 
 )code" ADD_FILELINE)
 .set_num_inputs(1)

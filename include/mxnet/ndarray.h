@@ -285,6 +285,19 @@ class NDArray {
     ptr_->set_aux_shape(index, shape);
   }
 
+  /*
+   * \brief Set the ragged_nested_depth of the RaggedNDArray.
+   */
+  inline void set_ragged_structure(int nested_depth,
+                                   const std::vector<int>& ragged_axes,
+                                   int pad_factor) {
+    CHECK_EQ(storage_type(), kRaggedStorage) <<
+    "set_ragged_nested_depth() is only intended for kRaggedStorage";
+    this->ragged_nested_depth = depth;
+    this->ragged_axes = ragged_axes;
+    this->ragged_pad_factor = pad_factor;
+  }
+
   /*!
    * \return the data TBlob
    */
@@ -839,17 +852,22 @@ class NDArray {
                     aux_handles[0] = indptr, aux_handles[1] = indices
                for ragged,
                     aux_handles[0] = nested_row_splits
-                        If nested_depth == 0, it will be empty
-                        If nested_depth == 1,
+                        If ragged_nested_depth == 0, it will be empty
+                        If ragged_nested_depth == 1,
                             it stores the starting positions of the inner ndarrays
                         If nested_depth > 1,
                             for i between 0 and depth - 2
                                 nested_row_splits[indptr[i]:indptr[i+1]] stores the
+                                starting positions of the
+                            for i == depth - 1
+                                nested_row_splits[indptr[i]:indptr[i+1]] stores the pointer shift that
                     aux_handles[1] = row_splits_indptr
-                        It stores the starting and ending positions of the row_splits
+                        It stores the starting and ending positions of each layer of
+                        nested_row_splits.
                     aux_handles[2] = ragged_sizes
                         It stores the shapes of each array at the ragged dimensions.
-                        Will have shape (N, #Inner Ragged)
+                        Will have shape (N, #Inner Ragged), in which N is the total
+                        number of Regular NDArrays that constructs this RaggedNDArray.
     */
     std::vector<Storage::Handle> aux_handles;
 
@@ -948,7 +966,8 @@ class NDArray {
           const mxnet::ShapeVector &aux_shapes_)
         : static_data(false), delay_alloc(delay_alloc_), storage_type(storage_type_),
           aux_types(aux_types_), ctx(ctx_), storage_shape(storage_shape_),
-          aux_shapes(aux_shapes_), storage_ref_(Storage::_GetSharedRef()),
+          aux_shapes(aux_shapes_),
+          storage_ref_(Storage::_GetSharedRef()),
           engine_ref_(Engine::_GetSharedRef()) {
       shandle.ctx = ctx;
       var = Engine::Get()->NewVariable();
@@ -1127,6 +1146,15 @@ class NDArray {
   bool reuse_ = false;
   /*! \brief storage type of data */
   NDArrayStorageType storage_type_ = kUndefinedStorage;
+  // The other shape information that are related to RaggedNDArray.
+  // TODO(sxjscience) Consider how to do better by class inheritance
+  /*! \brief nested_depth of RaggedNDArray */
+  int ragged_nested_depth = 0;
+  /*! \brief ragged axes */
+  std::vector<int> ragged_axes;
+  /*! \brief When storing the data, each NDArray inside the RaggedNDArray is padded to the
+   * closest multiplier of ragged_pad_factor */
+  int ragged_pad_factor = 1;
   /*! \brief node entry for autograd */
   nnvm::NodeEntry entry_;
   /*!
