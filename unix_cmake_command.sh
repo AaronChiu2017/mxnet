@@ -8,4 +8,4 @@ cmake --build .
 
 
 
-cmake -GNinja -D OpenCV_DIR=/usr/local/Cellar/opencv@3/3.4.5_2/share/OpenCV -C ../config/darwin.cmake ..
+cmake -GNinja -D OpenCV_DIR=/usr/local/Cellar/opencv@3/3.4.9_1/share/OpenCV -C ../config/darwin.cmake ..
