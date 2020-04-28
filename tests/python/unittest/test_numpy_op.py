@@ -1506,7 +1506,45 @@ def test_npx_batch_dot():
 
 @with_seed()
 @use_np
-@unittest.skip("NumpyBooleanAssignForwardCPU broken: https://github.com/apache/incubator-mxnet/issues/17990")
+def test_npx_softmax():
+    class TestSoftmax(HybridBlock):
+        def __init__(self, axis):
+            super(TestSoftmax, self).__init__()
+            self._axis = axis
+
+        def hybrid_forward(self, F, a):
+            return F.npx.softmax(a, axis=axis)
+
+    def np_softmax(x, axis=-1):
+        if (x.shape[axis] == 0):
+            return _np.sum(x, axis=axis, keepdims=True)
+        x = x - _np.max(x, axis=axis, keepdims=True)
+        x = _np.exp(x)
+        x /= _np.sum(x, axis=axis, keepdims=True)
+        return x
+
+    # only testing 0-size shaped inputs here, other input cases have been tested in test_opeartor.py
+    for hybridize in [True, False]:
+        for shape in [(3, 0, 4), (0, 0)]:
+            mx_a = np.random.uniform(size=shape)
+            mx_a.attach_grad()
+            for axis in range(-len(shape), len(shape)):
+                test_softmax = TestSoftmax(axis)
+                if hybridize:
+                    test_softmax.hybridize()
+
+                with mx.autograd.record():
+                    mx_out = test_softmax(mx_a)
+
+                np_out = np_softmax(mx_a.asnumpy(), axis)
+                assert_almost_equal(mx_out.asnumpy(), np_out, rtol=1e-3, atol=1e-5, equal_nan=True)
+
+                mx_out.backward()
+                assert_almost_equal(mx_a.grad.asnumpy(), _np.zeros(shape), rtol=1e-3, atol=1e-5)
+
+
+@with_seed()
+@use_np
 def test_npi_boolean_assign():
     class TestBooleanAssignScalar(HybridBlock):
         def __init__(self, val, start_axis):
@@ -2105,7 +2143,6 @@ def test_np_tril():
                 ret_mx = np.tril(data_mx, k*prefix)
             assert same(ret_mx.asnumpy(), ret_np)
             ret_mx.backward()
-            print(data_mx.grad)
             if len(shape) == 2:
                 grad_np = _np.tri(*shape, k=k*prefix)
                 assert same(data_mx.grad.asnumpy(), grad_np)
@@ -3908,7 +3945,8 @@ def test_npx_special_unary_func():
         'erf' : (lambda x: 2.0 / math.sqrt(math.pi) * _np.exp(-(x ** 2)), 0.5, 0.5),
         'erfinv' : (lambda x: 0.5 * math.sqrt(math.pi) * _np.exp(scipy_special.erfinv(x) ** 2), 0.5, 0.5),
         'gamma' : (lambda x: scipy_special.gamma(x) * scipy_special.psi(x), 0.5, 0.5),
-        'gammaln' : (lambda x: scipy_special.psi(x), 0.5, 0.5)
+        'gammaln' : (lambda x: scipy_special.psi(x), 0.5, 0.5),
+        'digamma' : (lambda x: scipy_special.polygamma(1, x), 0.5, 0.5)
     }
     ndim = random.choice([2, 3, 4])
     shape = random.choice([rand_shape_nd(ndim, dim=3), (1, 0, 2)])
@@ -4470,6 +4508,7 @@ def test_np_randn():
 
 @with_seed()
 @use_np
+@pytest.mark.skip(reason='Test hangs. Tracked in #18144')
 def test_np_multivariate_normal():
     class TestMultivariateNormal(HybridBlock):
         def __init__(self, size=None):
@@ -7198,6 +7237,51 @@ def test_np_tril_indices():
 
 
 @with_seed()
+@use_np   
+def test_np_fill_diagonal():
+    class TestFillDiagonal(HybridBlock):
+        def __init__(self, val, wrap=False):
+            super(TestFillDiagonal, self).__init__()
+            self._val = val
+            self._wrap= wrap
+
+        def hybrid_forward(self, F, x):
+            return F.np.fill_diagonal(x, val=self._val, wrap=self._wrap)
+
+    configs = [
+        ((10, 10), 2),
+        ((10, 10), -2),
+        ((4, 10), -2),
+        ((10, 4), 2),
+        ((10, 10), [-2, 2]),
+        ((10, 10), [-2, 2]),
+        ((10, 5), [-2, 2, -1, -3]),
+        ((100, 50), [-2, 2, -1, -3]),
+        ((1000, 500), [-2, 2, -1, -3]),
+        ((5, 10), [-2, 2, -1, -3]),
+        ((50, 100), [-2, 2, -1, -3]),
+        ((500, 1000), [-2, 2, -1, -3]),
+        ((4, 4, 4), 2),
+        ((4, 4, 4, 4), 2),
+        ((4, 4, 4, 4, 4), [-1, 2]),
+        ((4, 4, 4, 4, 4, 4, 4, 4), 2),
+        ((5, 5, 5, 5, 5, 5, 5, 5), [-1, 2, -2]),
+        ((6, 6, 6, 6, 6, 6, 6, 6), 2),
+        ((7, 7, 7, 7, 7, 7, 7, 7), [-1, 2, -2]),
+    ]
+    dtypes = ['int8', 'int32', 'int64', 'float16', 'float32', 'float64']
+    for dtype in dtypes:
+        for config in configs:
+            for wrap in [False, True]:
+                np_data = _np.ones(config[0]).astype(dtype)
+                mx_data = np.array(np_data, dtype=dtype)
+                test_filldiagonal = TestFillDiagonal(config[1], wrap)
+                test_filldiagonal(mx_data)
+                _np.fill_diagonal(np_data, config[1], wrap)
+                assert same(np_data, mx_data.asnumpy())
+
+
+@with_seed()
 @use_np
 def test_np_moveaxis():
     class TestMoveaxis(HybridBlock):
@@ -8266,6 +8350,7 @@ def test_np_column_stack():
 
 @with_seed()
 @use_np
+@pytest.mark.skip(reason='Test hangs. Tracked in #18144')
 def test_np_resize():
     class TestResize(HybridBlock):
         def __init__(self, new_shape):
@@ -8602,13 +8687,13 @@ def test_np_unary_bool_funcs():
             mx_out_imperative = getattr(mx.np, func)(mx_data)
             assert_almost_equal(mx_out_imperative.asnumpy(), np_out, rtol, atol)
             # if `out` is given and dtype == np.bool
-            mx_x = np.empty_like(mx_data).astype(np.bool)
+            mx_x = np.ones_like(mx_data).astype(np.bool)
             np_x = mx_x.asnumpy()
             getattr(mx.np, func)(mx_data, mx_x)
             np_func(np_data, np_x)
             assert_almost_equal(mx_out_imperative .asnumpy(), np_out, rtol, atol)
             # if `out` is given but dtype mismatches
-            mx_y = np.empty_like(mx_data)
+            mx_y = np.ones_like(mx_data)
             assertRaises(TypeError, getattr(np, func), mx_data, out=mx_y)
 
             assertRaises(NotImplementedError, getattr(np, func), mx_data, where=False)
@@ -8830,6 +8915,7 @@ def test_np_expand_dims():
 
 @with_seed()
 @use_np
+@pytest.mark.skip(reason='Test hangs. Tracked in #18144')
 def test_np_unravel_index():
     class TestUnravel_index(HybridBlock):
         def __init__(self, shape, order='C') :
