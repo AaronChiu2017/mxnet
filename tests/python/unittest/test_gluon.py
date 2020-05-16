@@ -16,6 +16,7 @@
 # under the License.
 
 import os
+import gc
 
 import mxnet as mx
 from mxnet import gluon
@@ -27,7 +28,7 @@ from mxnet.ndarray.ndarray import _STORAGE_TYPE_STR_TO_ID
 from mxnet.test_utils import use_np
 import mxnet.numpy as _mx_np
 from common import (setup_module, with_seed, assertRaises, teardown_module,
-                    assert_raises_cudnn_not_satisfied)
+                    assert_raises_cudnn_not_satisfied, xfail_when_nonstandard_decimal_separator)
 import numpy as np
 from numpy.testing import assert_array_equal
 import pytest
@@ -754,6 +755,7 @@ def test_batchnorm():
     check_layer_forward(layer, (2, 10, 10, 10))
 
 
+@xfail_when_nonstandard_decimal_separator
 @with_seed()
 def test_sync_batchnorm():
     def _check_batchnorm_result(input, num_devices=1, cuda=False):
@@ -1377,6 +1379,7 @@ def test_inline():
     assert len_1 == len_2 + 2
 
 
+@xfail_when_nonstandard_decimal_separator
 @with_seed()
 def test_activations():
     point_to_validate = mx.nd.array([-0.1, 0.1] * 3)
@@ -3227,3 +3230,40 @@ def test_reqs_switching_training_inference():
 
     mx.test_utils.assert_almost_equal(grad1, grad2)
 
+def test_no_memory_leak_in_gluon():
+    # Collect all other garbage prior to this test. Otherwise the test may fail
+    # due to unrelated memory leaks.
+    gc.collect()
+
+    gc_flags = gc.get_debug()
+    gc.set_debug(gc.DEBUG_SAVEALL)
+    net = mx.gluon.nn.Dense(10, in_units=10)
+    net.initialize()
+    del net
+    gc.collect()
+    gc.set_debug(gc_flags)  # reset gc flags
+
+    # Check for leaked NDArrays
+    seen = set()
+    def has_array(element):
+        try:
+            if element in seen:
+                return False
+            seen.add(element)
+        except TypeError:  # unhashable
+            pass
+
+        if isinstance(element, mx.nd._internal.NDArrayBase):
+            return True
+        elif hasattr(element, '__dict__'):
+            return any(has_array(x) for x in vars(element))
+        elif isinstance(element, dict):
+            return any(has_array(x) for x in element.items())
+        else:
+            try:
+                return any(has_array(x) for x in element)
+            except (TypeError, KeyError):
+                return False
+
+    assert not any(has_array(x) for x in gc.garbage), 'Found leaked NDArrays due to reference cycles'
+    del gc.garbage[:]
