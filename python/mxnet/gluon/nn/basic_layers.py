@@ -450,11 +450,15 @@ class BatchNorm(_BatchNorm):
                  in_channels=0, **kwargs):
         assert not fuse_relu, "Please use BatchNormReLU with Relu fusion"
         super(BatchNorm, self).__init__(
-            axis=1, momentum=0.9, epsilon=1e-5, center=True, scale=True,
-            use_global_stats=False, fuse_relu=False,
-            beta_initializer='zeros', gamma_initializer='ones',
-            running_mean_initializer='zeros', running_variance_initializer='ones',
-            in_channels=0, **kwargs)
+            axis=axis, momentum=momentum, epsilon=epsilon, center=center,
+            scale=scale,
+            use_global_stats=use_global_stats, fuse_relu=False,
+            beta_initializer=beta_initializer,
+            gamma_initializer=gamma_initializer,
+            running_mean_initializer=running_mean_initializer,
+            running_variance_initializer=running_variance_initializer,
+            in_channels=in_channels, **kwargs)
+
 
 class BatchNormReLU(_BatchNorm):
     """Batch normalization layer (Ioffe and Szegedy, 2014).
