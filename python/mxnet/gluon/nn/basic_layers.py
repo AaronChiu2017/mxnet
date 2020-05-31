@@ -513,7 +513,6 @@ class BatchNormReLU(_BatchNorm):
                  beta_initializer='zeros', gamma_initializer='ones',
                  running_mean_initializer='zeros', running_variance_initializer='ones',
                  in_channels=0, **kwargs):
-        assert fuse_relu, "Please use BatchNorm w/o Relu fusion"
         super(BatchNormReLU, self).__init__(
             axis=axis, momentum=momentum, epsilon=epsilon,
             center=center, scale=scale,
