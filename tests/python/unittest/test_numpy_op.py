@@ -2432,7 +2432,7 @@ def test_negation():
         def hybrid_forward(self, F, a):
             return -a
     mx_func = TestNegation()
-    for dtype in [_np.int8, _np.int32, _np.bool, _np.float16, _np.float32, _np.float64]:
+    for dtype in [_np.int8, _np.int32, _np.float16, _np.float32, _np.float64]:
         np_test_data = _np.random.uniform(-1, 1, (5, 5)).astype(dtype)
         for hybridize in [True, False]:
             mx_test_data = mx.numpy.array(np_test_data, dtype=dtype)
@@ -2798,6 +2798,15 @@ def test_np_mixed_precision_binary_funcs():
         'mod': (1.0, 5.0, None, None),
         'power': (1.0, 3.0, lambda y, x1, x2: _np.power(x1, x2 - 1.0) * x2,
                             lambda y, x1, x2: _np.power(x1, x2) * _np.log(x1)),
+        'equal': (0.0, 2.0, None, None),
+        'not_equal': (0.0, 2.0, None, None),
+        'greater': (0.0, 2.0, None, None),
+        'less': (0.0, 2.0, None, None),
+        'greater_equal': (0.0, 2.0, None, None),
+        'less_equal': (0.0, 2.0, None, None),
+        'logical_and': (0.0, 2.0, None, None),
+        'logical_or': (0.0, 2.0, None, None),
+        'logical_xor': (0.0, 2.0, None, None),
     }
 
     shape_pairs = [((3, 2), (3, 2)),
@@ -9147,6 +9156,13 @@ def test_np_where():
             same(ret.asnumpy(), _np.where(cond.asnumpy(), x.asnumpy(), 1))
             ret_rscalar.backward()
             same(x.grad.asnumpy(), collapse_sum_like(_np.broadcast_to(cond.asnumpy(), ret.shape), shape_pair[1]))
+        
+        # check both scalar case
+        x = _np.random.randint(0, 100)
+        y = _np.random.randint(0, 100)
+        mx_out = np.where(cond, x, y)
+        np_out = _np.where(cond, x, y)
+        same(mx_out, np_out)
 
 
 @with_seed()
