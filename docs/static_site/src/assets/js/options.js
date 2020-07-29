@@ -22,6 +22,10 @@
 */
 
 $(document).ready(function () {
+    const dropdownVersions = $("#version-dropdown-container ul li")
+        .toArray()
+        .map((li) => li.innerText);
+
     function label(lbl) {
         lbl = lbl.replace(/[ .]/g, '-').toLowerCase();
 
@@ -33,6 +37,9 @@ $(document).ready(function () {
         let searchParams = searchString.substring(1).split("&");
         searchParams.forEach(function (element) {
             kvPair = element.split("=");
+            if (kvPair[0] === 'version' && dropdownVersions.indexOf(kvPair[1]) == -1) {
+                kvPair[1] = dropdownVersions[0];
+            }
             searchDict.set(kvPair[0], kvPair[1]);
         });
         return searchDict;
@@ -52,7 +59,7 @@ $(document).ready(function () {
             versionSelect = urlParams.get('version');
             $('li.versions').removeClass('active');
             $('li.versions').each(function () { is_a_match($(this), versionSelect) });
-            $('.current-version').html("Version: " + versionSelect + '<svg class="dropdown-caret" viewBox="0 0 32 32" class="icon icon-caret-bottom" aria-hidden="true"><path class="dropdown-caret-path" d="M24 11.305l-7.997 11.39L8 11.305z"></path></svg>');
+            $('.current-version').html(versionSelect + '<svg class="dropdown-caret" viewBox="0 0 32 32" class="icon icon-caret-bottom" aria-hidden="true"><path class="dropdown-caret-path" d="M24 11.305l-7.997 11.39L8 11.305z"></path></svg>');
             queryString += 'version=' + versionSelect + '&';
         }
         if (urlParams.get('platform')) {
@@ -109,7 +116,7 @@ $(document).ready(function () {
         el.siblings().removeClass('active');
         el.addClass('active');
         if ($(this).hasClass("versions")) {
-            $('.current-version').html("Version: " + $(this).text());
+            $('.current-version').html($(this).text());
             urlParams.set("version", $(this).text());
         } else if ($(this).hasClass("platforms")) {
             urlParams.set("platform", label($(this).text()));
