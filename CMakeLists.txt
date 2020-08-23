@@ -1,20 +1,12 @@
 cmake_minimum_required(VERSION 3.13)
 
-file(READ "include/mxnet/base.h" ver)
-string(REGEX MATCH "MXNET_MAJOR ([0-9]*)" _ ${ver})
-set(ver_major ${CMAKE_MATCH_1})
-string(REGEX MATCH "MXNET_MINOR ([0-9]*)" _ ${ver})
-set(ver_minor ${CMAKE_MATCH_1})
-string(REGEX MATCH "MXNET_PATCH ([0-9]*)" _ ${ver})
-set(ver_patch ${CMAKE_MATCH_1})
-
 # workaround to store CMAKE_CROSSCOMPILING because is getting reset by the project command
 if(CMAKE_CROSSCOMPILING)
   set(__CMAKE_CROSSCOMPILING ${CMAKE_CROSSCOMPILING})
   set(__CMAKE_CROSSCOMPILING_OVERRIDE ON)
 endif()
 
-project(mxnet VERSION ${ver_major}.${ver_minor}.${ver_patch} LANGUAGES C CXX)
+project(mxnet C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS ON)  # GNU extensions used by src/operator/random/shuffle_op.cc
@@ -87,7 +79,6 @@ option(USE_MXNET_LIB_NAMING "Use MXNet library naming conventions." ON)
 option(USE_GPROF "Compile with gprof (profiling) flag" OFF)
 option(USE_VTUNE "Enable use of Intel Amplifier XE (VTune)" OFF) # one could set VTUNE_ROOT for search path
 option(USE_TVM_OP "Enable use of TVM operator build system." OFF)
-option(ENABLE_CUDA_RTC "Build with CUDA runtime compilation support" ON)
 option(BUILD_CPP_EXAMPLES "Build cpp examples" ON)
 option(INSTALL_EXAMPLES "Install the example source files." OFF)
 option(USE_SIGNAL_HANDLER "Print stack traces on segfaults." ON)
@@ -111,6 +102,8 @@ if(USE_TVM_OP)
   add_definitions(-DMXNET_USE_TVM_OP=1)
 endif()
 
+message(STATUS "CMake version '${CMAKE_VERSION}' using generator '${CMAKE_GENERATOR}'")
+project(mxnet C CXX)
 if(USE_CUDA)
   cmake_minimum_required(VERSION 3.13.2)  # CUDA 10 (Turing) detection available starting 3.13.2
   include(CheckLanguage)
@@ -310,20 +303,6 @@ include_directories("3rdparty/tvm/nnvm/include")
 include_directories("3rdparty/tvm/include")
 include_directories("3rdparty/dmlc-core/include")
 include_directories("3rdparty/dlpack/include")
-
-# commented out until PR goes through
-#if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/dlpack)
-#  add_subdirectory(3rdparty/dlpack)
-#endif()
-
-# Prevent stripping out symbols (operator registrations, for example)
-if(NOT MSVC AND NOT APPLE)
-  set(BEGIN_WHOLE_ARCHIVE -Wl,--whole-archive)
-  set(END_WHOLE_ARCHIVE -Wl,--no-whole-archive)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  # using regular Clang or AppleClang
-  set(BEGIN_WHOLE_ARCHIVE -Wl,-force_load)
-endif()
 
 if(UNIX)
   find_library(RTLIB rt)
@@ -567,18 +546,11 @@ if(USE_CUDA)
 
   string(REPLACE ";" " " CUDA_ARCH_FLAGS_SPACES "${CUDA_ARCH_FLAGS}")
 
-  find_package(CUDAToolkit REQUIRED cublas cufft cusolver curand
-    OPTIONAL_COMPONENTS nvToolsExt nvrtc)
+  find_package(CUDAToolkit REQUIRED cublas cufft cusolver curand nvrtc cuda_driver
+    OPTIONAL_COMPONENTS nvToolsExt)
 
-  list(APPEND mxnet_LINKER_LIBS CUDA::cudart CUDA::cublas CUDA::cufft CUDA::cusolver CUDA::curand)
-  if(ENABLE_CUDA_RTC)
-    if(CUDA_nvrtc_LIBRARY)
-      list(APPEND mxnet_LINKER_LIBS CUDA::nvrtc cuda)
-      add_definitions(-DMXNET_ENABLE_CUDA_RTC=1)
-    else()
-      message(FATAL_ERROR "ENABLE_CUDA_RTC=ON, but failed to find NVRTC. CMake will exit." )
-    endif()
-  endif()
+  list(APPEND mxnet_LINKER_LIBS CUDA::cudart CUDA::cublas CUDA::cufft CUDA::cusolver CUDA::curand
+                                CUDA::nvrtc CUDA::cuda_driver)
   list(APPEND SOURCE ${CUDA})
   add_definitions(-DMXNET_USE_CUDA=1)
 
@@ -664,6 +636,18 @@ if(UNIX)
     target_compile_options(mxnet PUBLIC "--coverage")
     target_link_libraries(mxnet PUBLIC gcov)
   endif()
+  if(CMAKE_BUILD_TYPE STREQUAL "Distribution")
+    # TODO For handling mxnet's symbols the following can be replace by
+    # annotating symbol visibility in source code, specifying
+    # set(CMAKE_CXX_VISIBILITY_PRESET hidden) and
+    # set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
+    # Symbols from statically linked libraries can be discarded via -Wl,--exclude-libs,ALL
+    if(APPLE)
+      set_target_properties(mxnet PROPERTIES LINK_FLAGS "-Wl,-exported_symbols_list,${PROJECT_SOURCE_DIR}/cmake/libmxnet.sym")
+    else()
+      set_target_properties(mxnet PROPERTIES LINK_FLAGS "-Wl,--version-script=${PROJECT_SOURCE_DIR}/cmake/libmxnet.ver")
+    endif()
+  endif()
 elseif(MSVC)
   if(USE_CUDA)
     if(USE_SPLIT_ARCH_DLL)
@@ -713,7 +697,6 @@ elseif(MSVC)
     target_link_libraries(mxnet PUBLIC mshadow)
   endif()
 endif()
-set_target_properties(mxnet PROPERTIES VERSION ${PROJECT_VERSION} SOVERSION ${PROJECT_VERSION_MAJOR})
 target_compile_definitions(mxnet PUBLIC DMLC_LOG_FATAL_THROW=$<BOOL:${LOG_FATAL_THROW}>)
 
 # extension libraries (custom operators, custom subgraphs) are built by default
@@ -834,8 +817,12 @@ endif()
 include(GNUInstallDirs)
 install(TARGETS mxnet
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+          COMPONENT   MXNET_Runtime
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+          COMPONENT            MXNET_Runtime
+          NAMELINK_COMPONENT   MXNET_Development
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+          COMPONENT   MXNET_Development
 )
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/dlpack/include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/dmlc-core/include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
@@ -876,7 +863,10 @@ if(INSTALL_PYTHON_VERSIONS)
   endforeach()
 endif()
 
-add_subdirectory(tests)
+if(NOT CMAKE_BUILD_TYPE STREQUAL "Distribution")
+  # Staticbuild applies linker version script to hide private symbols, breaking unit tests
+  add_subdirectory(tests)
+endif()
 
 # ---[ Linter target
 find_package(Python3)

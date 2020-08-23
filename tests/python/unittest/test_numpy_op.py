@@ -37,7 +37,7 @@ from common import assertRaises, with_seed, retry, xfail_when_nonstandard_decima
 import random
 from mxnet.test_utils import verify_generator, gen_buckets_probs_with_ppf
 from mxnet.numpy_op_signature import _get_builtin_op
-from mxnet.test_utils import is_op_runnable, has_tvm_ops
+from mxnet.test_utils import is_op_runnable, has_tvm_ops, rand_shape_2d
 from mxnet.operator import get_all_registered_operators
 
 
@@ -4799,6 +4799,46 @@ def test_gamma_exception():
     ]
     for (shape, scale) in zip(shape_list, scale_list):
         assertRaises(ValueError, _test_gamma_exception, shape, scale)
+
+
+@with_seed()
+@use_np
+@pytest.mark.parametrize("shape", [(1,), (2, 2), (4, 2, 2)])
+@pytest.mark.parametrize("a", [2.0, 5.0, 10.0])
+@pytest.mark.parametrize("b", [0.5, 1.0, 1.5])
+def test_gamma_grad(shape, a, b):
+    class TestGammaGrad(HybridBlock):
+        def __init__(self, size, beta):
+            super(TestGammaGrad, self).__init__()
+            self._size = size
+            self._beta = beta
+
+        def hybrid_forward(self, F, a):
+            return F.np.random.gamma(a, self._beta, size=self._size)
+
+    for hybridize in [True, False]:
+        param = np.ones(shape) * a
+        param.attach_grad()
+        net = TestGammaGrad(shape, b)
+        if hybridize:
+            net.hybridize()
+        with mx.autograd.record():
+            samples = net(param)
+        samples.backward()
+        # Check shape
+        assert param.grad.shape == param.shape
+        # Check correctness
+        cdf = ss.gamma.cdf
+        log_pdf = ss.gamma.logpdf
+        eps = (0.01 * param / (1.0 + param ** 0.5)).asnumpy()
+        x = samples.asnumpy().astype('float64') / b
+        # d(cdf(x;alpha,beta))/d(alpha)
+        cdf_alpha = (cdf(x, param.asnumpy() + eps) -
+                        cdf(x, param.asnumpy() - eps)) / (2 * eps)
+        # d(cdf(x;alpha,beta))/d(x)
+        log_cdf_x = log_pdf(x, param.asnumpy())
+        expected_grad = -b * cdf_alpha / _np.exp(log_cdf_x)
+        assert_almost_equal(expected_grad, param.grad.asnumpy(), rtol=1e-2, atol=1e-3)
 
 
 @with_seed()
@@ -10169,6 +10209,7 @@ def test_np_rollaxis():
                         assert same(mx_out.asnumpy(), np_out)
 
 
+@with_seed()
 @use_np
 def test_npx_stop_gradient():
     class TestStopGradient(HybridBlock):
@@ -10196,3 +10237,81 @@ def test_npx_stop_gradient():
                 elif grad_req == 'add':
                     assert_almost_equal(new_grad, old_grad + 1)
 
+
+@with_seed()
+@use_np
+def test_np_elementwise_ops_on_misaligned_input():
+    a = np.array([1,2,3,4], dtype='float16')
+    b = np.array([1,2,3,4], dtype='float16')
+
+    c = a[1:3]
+    d = b[1:3]
+    # Note: testing just elemwise_add since all elemwise_ops
+    #       share the implementation
+    c[:] = c + d
+    mx.nd.waitall()
+
+    a = np.array([1,2,3,4], dtype='float16')
+    b = np.array([1,2,3,4], dtype='float16')
+
+    c = a[0:3]
+    d = b[0:3]
+    c[:] = c + d
+    mx.nd.waitall()
+    assert a[3] == 4.0
+
+
+@with_seed()
+@use_np
+@pytest.mark.parametrize('dtype', ['float16', 'float32', 'float64'])
+@pytest.mark.parametrize('lead_dim', [2, 3, 4, 6, 10])
+@pytest.mark.parametrize('both_ways', [False, True])
+def test_np_broadcast_ops_on_misaligned_input(dtype, lead_dim, both_ways):
+    shape = list(rand_shape_2d()) + [lead_dim]
+    small_shape = [shape[0], 1, lead_dim]
+    if both_ways:
+        # Broadcast in both ways [1, K, L] x [M, 1, L]
+        big_shape = [1, shape[1], lead_dim]
+    else:
+        big_shape = shape
+    size = _np.product(shape)
+    small_size = _np.product(small_shape)
+    big_size = _np.product(big_shape)
+    a = np.arange(5000)
+    b = np.arange(5000)
+    e = np.arange(5000)
+    c = a[1:big_size + 1].reshape(tuple(big_shape))
+    d = b[1:small_size + 1].reshape(tuple(small_shape))
+    f = e[1:size + 1].reshape(tuple(shape))
+    f[:] = c + d
+    expected = c.asnumpy() + d.asnumpy()
+    mx.nd.waitall()
+    assert_almost_equal(f, expected)
+
+
+@with_seed()
+@use_np
+@pytest.mark.parametrize('dtype', ['float16', 'float32', 'float64'])
+@pytest.mark.parametrize('lead_dim', [2, 3, 4, 6, 10])
+@pytest.mark.parametrize('both_ways', [False, True])
+def test_np_broadcast_ops_on_misaligned_input_oneside(dtype, lead_dim, both_ways):
+    shape = list(rand_shape_2d()) + [lead_dim]
+    small_shape = [shape[0], shape[1], 1]
+    if both_ways:
+        # Broadcast in both ways [1, K, L] x [M, 1, 1]
+        big_shape = [1, shape[1], lead_dim]
+    else:
+        big_shape = shape
+    size = _np.product(shape)
+    small_size = _np.product(small_shape)
+    big_size = _np.product(big_shape)
+    a = np.arange(5000)
+    b = np.arange(5000)
+    e = np.arange(5000)
+    c = a[1:big_size + 1].reshape(tuple(big_shape))
+    d = b[1:small_size + 1].reshape(tuple(small_shape))
+    f = e[1:size + 1].reshape(tuple(shape))
+    f[:] = c + d
+    expected = c.asnumpy() + d.asnumpy()
+    mx.nd.waitall()
+    assert_almost_equal(f, expected)
