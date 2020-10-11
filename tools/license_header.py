@@ -116,6 +116,7 @@ _WHITE_LIST = [
                '.github/ISSUE_TEMPLATE/bug_report.md',
                '.github/ISSUE_TEMPLATE/feature_request.md',
                '.github/ISSUE_TEMPLATE/flaky_test.md',
+               '.github/ISSUE_TEMPLATE/rfc.md',
                '.github/PULL_REQUEST_TEMPLATE.md'
                ]
 
@@ -293,7 +294,7 @@ def main():
 
     args = parser.parse_args()
     action = args.action[0]
-    files = list(chain(*args.file))
+    files = list(chain.from_iterable(args.file))
     if not files and action =='check':
         if under_git():
             logging.info("Git detected: Using files under version control")

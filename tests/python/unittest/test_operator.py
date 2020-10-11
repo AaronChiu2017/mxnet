@@ -29,7 +29,7 @@ from numpy.testing import assert_allclose, assert_array_equal
 from mxnet.test_utils import *
 from mxnet.operator import *
 from mxnet.base import py_str, MXNetError, _as_list
-from common import setup_module, with_seed, teardown_module, assert_raises_cudnn_not_satisfied, assert_raises_cuda_not_satisfied, assertRaises
+from common import with_seed, assert_raises_cudnn_not_satisfied, assert_raises_cuda_not_satisfied, assertRaises
 from common import xfail_when_nonstandard_decimal_separator, with_environment
 import pytest
 import os
@@ -3231,7 +3231,15 @@ def test_correlation():
         unittest_correlation((5,1,4,4), kernel_size = 3,max_displacement = 1,stride1 = 2,stride2 = 1,pad_size = 2,is_multiply = False, dtype = dtype)
         unittest_correlation((5,1,6,4), kernel_size = 3,max_displacement = 1,stride1 = 2,stride2 = 1,pad_size = 2,is_multiply = False, dtype = dtype)
         unittest_correlation((5,1,11,11), kernel_size = 5,max_displacement = 1,stride1 = 1,stride2 = 1,pad_size = 2,is_multiply = False, dtype = dtype)
-
+        
+        with pytest.raises(MXNetError):
+            unittest_correlation((1,3,10,10), kernel_size = 1,max_displacement = 4,stride1 = 0,stride2 = 1,pad_size = 4,is_multiply = False, dtype = dtype)
+        with pytest.raises(MXNetError):
+            unittest_correlation((5,1,15,15), kernel_size = 1,max_displacement = 5,stride1 = 1,stride2 = 0,pad_size = 5,is_multiply = False, dtype = dtype)
+        with pytest.raises(MXNetError):
+            unittest_correlation((5,1,15,15), kernel_size = 1,max_displacement = 5,stride1 = 1,stride2 = 0,pad_size = 5,is_multiply = True, dtype = dtype)
+        with pytest.raises(MXNetError):
+            unittest_correlation((1,3,10,10), kernel_size = 1,max_displacement = 4,stride1 = 0,stride2 = 1,pad_size = 4,is_multiply = True, dtype = dtype)
 
 # Seed set because the test is not robust enough to operate on random data
 @with_seed(1234)
@@ -5798,16 +5806,16 @@ def test_deformable_convolution():
                         weight = np.random.normal(0, 0.001, (num_channel_data, num_channel_data, 3, 3))
                         bias = np.zeros(num_channel_data)
 
-                        im_data_var = mx.symbol.Variable(name="im_data")
-                        offset_data_var = mx.symbol.Variable(name="offset_data")
-                        weight_var = mx.symbol.Variable(name="weight")
-                        bias_var = mx.symbol.Variable(name="bias")
-                        op = mx.sym.contrib.DeformableConvolution(name='test_op', data=im_data_var,
-                                                                  offset=offset_data_var,
-                                                                  weight=weight_var, bias=bias_var,
-                                                                  num_filter=num_channel_data, pad=dilate,
-                                                                  kernel=(3, 3), stride=(1, 1), dilate=dilate,
-                                                                  num_deformable_group=num_deformable_group)
+                        im_data_var = mx.symbol.Variable(name="im_data").as_np_ndarray()
+                        offset_data_var = mx.symbol.Variable(name="offset_data").as_np_ndarray()
+                        weight_var = mx.symbol.Variable(name="weight").as_np_ndarray()
+                        bias_var = mx.symbol.Variable(name="bias").as_np_ndarray()
+                        op = mx.sym.npx.deformable_convolution(name='test_op', data=im_data_var,
+                                                               offset=offset_data_var,
+                                                               weight=weight_var, bias=bias_var,
+                                                               num_filter=num_channel_data, pad=dilate,
+                                                               kernel=(3, 3), stride=(1, 1), dilate=dilate,
+                                                               num_deformable_group=num_deformable_group)
                         if grad_nodes[0] == 'offset_data':
                             # wider tolerance needed for coordinate differential
                             rtol, atol = 1.0, 1e-2

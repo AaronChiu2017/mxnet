@@ -43,7 +43,8 @@ from . import _internal
 from . import op
 from ._internal import SymbolBase, _set_symbol_class
 from ..util import is_np_shape
-from ..profiler import _current_scope as _profiler_scope
+from ..profiler import scope as _profiler_scope
+from ..profiler import _current_scope as _current_profiler_scope
 
 __all__ = ["Symbol", "var", "Variable", "Group", "load", "load_json",
            "pow", "power", "maximum", "minimum", "hypot", "eye", "zeros",
@@ -1242,9 +1243,9 @@ class Symbol(SymbolBase):
             out_shape_data = ctypes.POINTER(ctypes.POINTER(mx_int64))()
             aux_shape_data = ctypes.POINTER(ctypes.POINTER(mx_int64))()
             if partial:
-                infer_func = _LIB.MXSymbolInferShapePartialEx64
+                infer_func = _LIB.MXSymbolInferShapePartial64
             else:
-                infer_func = _LIB.MXSymbolInferShapeEx64
+                infer_func = _LIB.MXSymbolInferShape64
             check_call(infer_func(
                 self.handle,
                 mx_uint(len(indptr) - 1),
@@ -1271,9 +1272,9 @@ class Symbol(SymbolBase):
             out_shape_data = ctypes.POINTER(ctypes.POINTER(mx_int))()
             aux_shape_data = ctypes.POINTER(ctypes.POINTER(mx_int))()
             if partial:
-                infer_func = _LIB.MXSymbolInferShapePartialEx
+                infer_func = _LIB.MXSymbolInferShapePartial
             else:
-                infer_func = _LIB.MXSymbolInferShapeEx
+                infer_func = _LIB.MXSymbolInferShape
             check_call(infer_func(
                 self.handle,
                 mx_uint(len(indptr) - 1),
@@ -1782,15 +1783,16 @@ class Symbol(SymbolBase):
                     index = aux_names.index(name)
                     aux_states[index] = aux_states[index].totype(stype)
 
-        if grad_req == 'null':
-            args_grad = None
-        elif isinstance(grad_req, dict):
-            args_grad = {}
-            for i, name in enumerate(arg_names):
-                if grad_req[name] != 'null':
-                    args_grad[name] = args[i].copy()
-        else:
-            args_grad = [x.copy() for x in args]
+        with _profiler_scope("symbol:arg_grad:"):
+            if grad_req == 'null':
+                args_grad = None
+            elif isinstance(grad_req, dict):
+                args_grad = {}
+                for i, name in enumerate(arg_names):
+                    if grad_req[name] != 'null':
+                        args_grad[name] = args[i].copy()
+            else:
+                args_grad = [x.copy() for x in args]
         return Executor(self, ctx, args, args_grad, grad_req, aux_states)
 
     def _bind(self, ctx, args, args_grad=None, grad_req='write',
@@ -2728,7 +2730,7 @@ def var(name, attr=None, shape=None, lr_mult=None, wd_mult=None, dtype=None,
     if profiler_scope is not None:
         attr['__profiler_scope__'] = profiler_scope
     else:
-        attr['__profiler_scope__'] = _profiler_scope.get()
+        attr['__profiler_scope__'] = _current_profiler_scope.get()
     for k, v in kwargs.items():
         if k.startswith('__') and k.endswith('__'):
             attr[k] = str(v)
@@ -3200,8 +3202,6 @@ def linspace(start, stop, num, endpoint=True, name=None, dtype=None):
     endpoint : bool
         If True, stop is the last sample. Otherwise, it is not included.
         The default is True.
-    ctx : Context, optional
-        Device context. Default context is the current default context.
     dtype : str or numpy.dtype, optional
         The data type of the `NDArray`. The default datatype is `np.float32`.
 
